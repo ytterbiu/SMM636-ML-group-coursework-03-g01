@@ -272,7 +272,7 @@ TBI
 
 # Customer Clustering {#qtwo}
 
-*Perform clustering on the customers*
+_Perform clustering on the customers_
 
 
 ```{r Q2, echo=FALSE, fig.pos="!ht"}
