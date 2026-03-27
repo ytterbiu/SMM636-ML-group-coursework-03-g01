@@ -1,6 +1,6 @@
 ---
-title: "Computational Frameworks for Portfolio Construction and Risk Assessment"
-subtitle: "SMM068 (2025-26) Group Coursework 01 - Group 08"
+title: "Customer Segmentation in Wholesale Markets: PCA, Clustering, and Large Language Model Evaluation"
+subtitle: "SMM068 (2025-26) Coursework 03 - Group 01"
 author:
   - "Abdulrahman Alolyan"
   - "Benjamin Evans"
@@ -18,8 +18,8 @@ output:
     toc_depth: 3
     number_sections: true
     code_folding: hide
-    theme: united
-    highlight: tango
+    theme: paper
+    highlight: pygments
     df_print: paged
     pandoc_args: ["--lua-filter=custom-boxes.lua"]
   # runtime: shiny
@@ -322,6 +322,8 @@ TBI
 
 ## A.1 Principal Component Analysis (PCA)
 
+*Example format below (literally asked base ChatGPT to come up with it's own prompt and then answer it - change when we do for real).*
+
 ::: promptbox
 **LLM Prompt:** Act as an expert data scientist. I have the Wholesale
 Customers dataset from Kaggle. Please write an R script to perform
@@ -377,11 +379,11 @@ An accessible HTML version of this report is available via a public GitHub page:
 This report was created in R Markdown. The source code is open source and is
 available via:
 
-- !link
+- https://github.com/ytterbiu/SMM636-ML-group-coursework-03-g01
 
 Changes made to this document were tracked using Git and are also available via
 the same repository
-(!link). Please
+(https://github.com/ytterbiu/SMM636-ML-group-coursework-03-g01/commits/main/). Please
 note that this commit history reflects updates made to the project repository
 and is not a comprehensive timeline of all contributions by group members.
 
