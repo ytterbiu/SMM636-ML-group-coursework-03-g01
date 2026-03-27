@@ -45,6 +45,7 @@ jobs:
         with:
           extra-packages: |
             any::rmarkdown
+            any::bookdown
             any::bslib
             any::quantmod
             any::xts
@@ -52,6 +53,11 @@ jobs:
             any::TTR
             any::svglite
           cache-version: 1
+          
+      - name: Check supporting files exist
+        run: |
+          echo "--- Checking for required files ---"
+          ls -la style.css custom-boxes.lua || echo "MISSING FILES!"
 
       - name: Render R Markdown (single file)
         env:

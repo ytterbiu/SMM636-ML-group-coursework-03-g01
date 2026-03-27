@@ -1,6 +1,7 @@
 # Folders
 .vscode/*
 submission-documents/
+.venv
 
 # user settings
 .*DS_Store/*

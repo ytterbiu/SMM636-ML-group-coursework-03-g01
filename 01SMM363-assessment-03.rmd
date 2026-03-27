@@ -382,10 +382,11 @@ _Perform clustering on the customers_
 
 ```{r Q2, echo=FALSE, fig.pos="!ht"}
 # ==============================================================================
-# Q2 Perform clustering
+# Q2 Clustering
 # ==============================================================================
-
-
+## cluster log-transformed, standardised data (same as PCA input)
+scaled_data <- scale(spending_log)
+ 
 ```
 
 TBI
