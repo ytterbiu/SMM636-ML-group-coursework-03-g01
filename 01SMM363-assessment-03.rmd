@@ -430,10 +430,13 @@ TBI
 _Example format below (literally asked base ChatGPT to come up with it's own
 prompt and then answer it - change when we do for real)._
 
-::: promptbox **LLM Prompt:** Act as an expert data scientist. I have the
+<!-- prettier-ignore -->
+::: promptbox 
+**LLM Prompt:** Act as an expert data scientist. I have the
 Wholesale Customers dataset from Kaggle. Please write an R script to perform
 Principal Component Analysis (PCA) on this dataset. Provide the code, generate
-the necessary plots, and summarise the key findings. :::
+the necessary plots, and summarise the key findings. 
+:::
 
 Here is the LLM's generated code:
 
@@ -447,14 +450,20 @@ installed <- packages %in% rownames(installed.packages())
 if(any(!installed)) install.packages(packages[!installed])
 ```
 
-::: insightbox **Our interpretation:** The PCA biplot shows that Fresh and Milk
+<!-- prettier-ignore -->
+::: insightbox 
+**Our interpretation:** The PCA biplot shows that Fresh and Milk
 spending are nearly orthogonal, suggesting they are independent purchasing
-behaviors. :::
+behaviors. 
+:::
 
-::: alertbox **Our concern:** PCA assumes linear relationships between
+<!-- prettier-ignore -->
+::: alertbox 
+**Our concern:** PCA assumes linear relationships between
 variables. If the underlying structure is non-linear, consider using t-SNE or
 UMAP instead. Also note that the results are sensitive to outliers — always
-check for extreme values before interpreting the components. :::
+check for extreme values before interpreting the components. 
+:::
 
 ```{=latex}
 \clearpage

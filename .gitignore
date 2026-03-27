@@ -25,6 +25,7 @@ submission-documents/
 *.ppt*
 *.dfc*
 *.svg
+*.ipynb
 
 ## latex specific files
 *.fdb_latexmk
