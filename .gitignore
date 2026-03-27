@@ -1,0 +1,40 @@
+# Folders
+.vscode/*
+submission-documents/
+
+# user settings
+.*DS_Store/*
+.DS_Store
+.Rproj.user
+*.Rproj
+
+# file types
+*.pdf
+*.html
+*.csv
+.RData
+.Rhistory
+*.tex
+*.aux
+*.log
+*.synctex*
+*.css
+*.xlsx
+*.doc*
+*.ppt*
+*.dfc*
+*.svg
+
+## latex specific files
+*.fdb_latexmk
+*.aux
+*.log
+*.synctex.gz
+*.bbl
+*.fls
+*.toc
+*.xdv
+*.blg
+
+# cached files
+
