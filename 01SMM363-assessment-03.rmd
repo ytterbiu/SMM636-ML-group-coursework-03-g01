@@ -125,6 +125,13 @@ library(patchwork) # for combining multiple plots into one figure
 
 # --- Reporting & Tables ---
 library(kableExtra) # for general tables
+
+library(factoextra)   # PCA & clustering visualisation
+library(cluster)      # silhouette, pam
+library(NbClust)      # optimal-k diagnostics
+library(corrplot)     # correlation heatmap
+library(gridExtra)    # arranging plots
+library(GGally)       # pairs plot
 ```
 
 ```{r custom-functions, include=FALSE, echo=FALSE}
@@ -252,15 +259,110 @@ format_spaced_6dp <- function(x) {
 }
 ```
 
+```{r load-data, echo=knitr::is_html_output(), include=TRUE}
+set.seed(1234)
+ 
+data <- read.csv("data/Wholesale_customers_data.csv")
+str(data)
+summary(data)
+
+spending <- data[, c(
+  "Fresh",
+  "Milk",
+  "Grocery",
+  "Frozen",
+  "Detergents_Paper",
+  "Delicassen"
+)]
+
+# distribution check
+spending %>%
+  pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
+  ggplot(aes(x = Spend)) +
+  geom_histogram(bins = 40, fill = "steelblue", colour = "white") +
+  facet_wrap(~Category, scales = "free") +
+  labs(title = "Distribution of Annual Spending by Category") +
+  theme_minimal()
+
+# Correlation matrix
+corrplot(
+  cor(spending),
+  method = "color",
+  type = "upper",
+  addCoef.col = "black",
+  tl.col = "black",
+  title = "Correlation Matrix of Spending Variables",
+  mar = c(0, 0, 2, 0)
+)
+```
+
 # Principle Component Analysis {#qone}
 
 _Apply PCA to the dataset and summarise and intepret key your findings_
 
-```{r Q1, echo=knitr::is_html_output(), include=FALSE}
+```{r Q1, echo=knitr::is_html_output(), include=TRUE}
 # ==============================================================================
 # Q1 PCA
 # ==============================================================================
 
+## log-transform (reduce skewness) - same principle as CS1 coursework
+spending_log <- log1p(spending) # log(1+x) handles any zeros safely
+
+## PCA on scaled log-transformed data
+pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
+summary(pca_result)
+
+## Scree plot; variance explained
+fviz_eig(
+  pca_result,
+  addlabels = TRUE,
+  ylim = c(0, 60),
+  main = "Scree Plot - Variance Explained by Each PC"
+)
+
+## cumulative variance
+cumvar <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
+cat("Cumulative variance explained:\n")
+print(round(cumvar, 3))
+
+## loadings
+loadings <- pca_result$rotation[, 1:3]
+print(round(loadings, 3))
+
+## biplot: variables + observations
+fviz_pca_biplot(
+  pca_result,
+  label = "var",
+  col.var = "firebrick",
+  col.ind = alpha("steelblue", 0.3),
+  repel = TRUE,
+  title = "PCA Biplot (log-transformed, standardised data)"
+)
+
+## variable contribution plots
+fviz_contrib(
+  pca_result,
+  choice = "var",
+  axes = 1,
+  title = "Variable Contributions to PC1"
+)
+fviz_contrib(
+  pca_result,
+  choice = "var",
+  axes = 2,
+  title = "Variable Contributions to PC2"
+)
+
+## colour by channel (similar to lectures)
+fviz_pca_ind(
+  pca_result,
+  geom.ind = "point",
+  col.ind = factor(data$Channel),
+  palette = c("#E64B35", "#4DBBD5"),
+  addEllipses = TRUE,
+  legend.title = "Channel",
+  title = "PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
+)
 ```
 
 TBI
@@ -374,7 +476,7 @@ check for extreme values before interpreting the components.
 
 An accessible HTML version of this report is available via a public GitHub page:
 
-- !link
+- https://ytterbiu.github.io/SMM636-ML-group-coursework-03-g01/
 
 This report was created in R Markdown. The source code is open source and is
 available via:
@@ -387,7 +489,10 @@ the same repository
 note that this commit history reflects updates made to the project repository
 and is not a comprehensive timeline of all contributions by group members.
 
-<!-- ## Generative AI Declaration -->
+## Generative AI Declaration
+
+- Will be best to ask about this during the lecture - will almost want this for 
+the first part - or is the first part completely AI free?
 
 <!-- Generative AI (GenAI) tools were used throughout this project to assist with -->
 <!-- project planning, methodological validation, and debugging. In practice, these -->
