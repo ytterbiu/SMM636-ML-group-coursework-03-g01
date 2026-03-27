@@ -1,5 +1,7 @@
 ---
-title: "Customer Segmentation in Wholesale Markets: PCA, Clustering, and Large Language Model Evaluation"
+title:
+  "Customer Segmentation in Wholesale Markets: PCA, Clustering, and Large
+  Language Model Evaluation"
 subtitle: "SMM068 (2025-26) Coursework 03 - Group 01"
 author:
   - "Abdulrahman Alolyan"
@@ -246,7 +248,7 @@ fmt_trunc_ellip <- function(
   out
 }
 #####################################
-# function: function to format 6dp numbers with a space after the 3rd decimal 
+# function: function to format 6dp numbers with a space after the 3rd decimal
 # digit
 # Usage (in-line): TBI
 # Usage (console): TBI
@@ -261,7 +263,7 @@ format_spaced_6dp <- function(x) {
 
 ```{r load-data, echo=knitr::is_html_output(), include=TRUE}
 set.seed(1234)
- 
+
 data <- read.csv("data/Wholesale_customers_data.csv")
 str(data)
 summary(data)
@@ -299,6 +301,8 @@ corrplot(
 # Principle Component Analysis {#qone}
 
 _Apply PCA to the dataset and summarise and intepret key your findings_
+
+See figures...
 
 ```{r Q1, echo=knitr::is_html_output(), include=TRUE}
 # ==============================================================================
@@ -376,7 +380,6 @@ TBI
 
 _Perform clustering on the customers_
 
-
 ```{r Q2, echo=FALSE, fig.pos="!ht"}
 # ==============================================================================
 # Q2 Perform clustering
@@ -386,7 +389,7 @@ _Perform clustering on the customers_
 ```
 
 TBI
- 
+
 ```{=latex}
 \newpage
 ```
@@ -396,7 +399,6 @@ TBI
 ```{=latex}
 \newpage
 ```
-
 
 <!-- ```{=html} -->
 <!-- # References -->
@@ -424,16 +426,16 @@ TBI
 
 ## A.1 Principal Component Analysis (PCA)
 
-*Example format below (literally asked base ChatGPT to come up with it's own prompt and then answer it - change when we do for real).*
+_Example format below (literally asked base ChatGPT to come up with it's own
+prompt and then answer it - change when we do for real)._
 
-::: promptbox
-**LLM Prompt:** Act as an expert data scientist. I have the Wholesale
-Customers dataset from Kaggle. Please write an R script to perform
-Principal Component Analysis (PCA) on this dataset. Provide the code,
-generate the necessary plots, and summarise the key findings.
-:::
+::: promptbox **LLM Prompt:** Act as an expert data scientist. I have the
+Wholesale Customers dataset from Kaggle. Please write an R script to perform
+Principal Component Analysis (PCA) on this dataset. Provide the code, generate
+the necessary plots, and summarise the key findings. :::
 
 Here is the LLM's generated code:
+
 ```{r, eval=FALSE}
 # =========================
 # 0. Setup
@@ -444,19 +446,14 @@ installed <- packages %in% rownames(installed.packages())
 if(any(!installed)) install.packages(packages[!installed])
 ```
 
-::: insightbox
-**Our interpretation:** The PCA biplot shows that Fresh and Milk spending
-are nearly orthogonal, suggesting they are independent purchasing
-behaviors.
-:::
+::: insightbox **Our interpretation:** The PCA biplot shows that Fresh and Milk
+spending are nearly orthogonal, suggesting they are independent purchasing
+behaviors. :::
 
-::: alertbox
-**Our concern:** PCA assumes linear relationships between variables. If the
-underlying structure is non-linear, consider using t-SNE or UMAP
-instead. Also note that the results are sensitive to outliers — always
-check for extreme values before interpreting the components.
-:::
-
+::: alertbox **Our concern:** PCA assumes linear relationships between
+variables. If the underlying structure is non-linear, consider using t-SNE or
+UMAP instead. Also note that the results are sensitive to outliers — always
+check for extreme values before interpreting the components. :::
 
 ```{=latex}
 \clearpage
@@ -485,14 +482,15 @@ available via:
 
 Changes made to this document were tracked using Git and are also available via
 the same repository
-(https://github.com/ytterbiu/SMM636-ML-group-coursework-03-g01/commits/main/). Please
-note that this commit history reflects updates made to the project repository
-and is not a comprehensive timeline of all contributions by group members.
+(https://github.com/ytterbiu/SMM636-ML-group-coursework-03-g01/commits/main/).
+Please note that this commit history reflects updates made to the project
+repository and is not a comprehensive timeline of all contributions by group
+members.
 
 ## Generative AI Declaration
 
-- Will be best to ask about this during the lecture - will almost want this for 
-the first part - or is the first part completely AI free?
+- Will be best to ask about this during the lecture - will almost want this for
+  the first part - or is the first part completely AI free?
 
 <!-- Generative AI (GenAI) tools were used throughout this project to assist with -->
 <!-- project planning, methodological validation, and debugging. In practice, these -->
