@@ -15,16 +15,37 @@
 }
 
 .promptbox {
+  background-color: #f6faf6;
+  border-right: 4px solid #5a9a5a;
+  border-left: none;
+  padding: 15px 20px;
+  margin: 20px 0;
+}
+
+.responsebox {
   background-color: #f7f7f7;
   border-left: 4px solid #999999;
   padding: 15px 20px;
   margin: 20px 0;
 }
+.responsebox code {
+  background-color: #eef1ee;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.responsebox pre {
+  background-color: #eef1ee;
+  border: 1px solid #d0d8d0;
+  border-radius: 4px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
 
 .insightbox {
   background-color: #f4f8fc;
-  border: 1px solid #b3d1f2;
-  border-radius: 8px;
+  border-top: 2px solid #b3d1f2;
+  border-bottom: 2px solid #b3d1f2;
   padding: 15px 20px;
   margin: 20px 0;
 }

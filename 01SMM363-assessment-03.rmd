@@ -425,6 +425,40 @@ TBI
 
 # Prompts and LLM outputs {#apd-llm-information}
 
+Throughout this appendix, we use a consistent visual format to distinguish
+between prompts sent to the LLM, its responses, and our own commentary.
+
+::: {.promptbox}
+
+**Prompt** — shown with a right-hand border. These are the instructions and
+questions we provided to the model.
+
+:::
+
+:::: {.responsebox}
+
+**LLM Response** — shown with a left-hand border, forming a conversational
+flow with the prompt. Responses may include a mix of explanation and code:
+```r
+summary(mtcars$mpg)
+```
+
+::::
+
+::: {.insightbox}
+
+**Insight and critical interpretation** — highlighted observations or key findings drawn from the output.
+
+:::
+
+::: {.alertbox}
+
+**Alert** — flags potential concerns, limitations, or caveats with the
+generated output.
+
+:::
+
+
 ## A.1 Principal Component Analysis (PCA)
 
 _Example format below (literally asked base ChatGPT to come up with it's own
@@ -438,9 +472,11 @@ Principal Component Analysis (PCA) on this dataset. Provide the code, generate
 the necessary plots, and summarise the key findings. 
 :::
 
-Here is the LLM's generated code:
+<!-- prettier-ignore -->
+:::: {.responsebox}
 
-```{r, eval=FALSE}
+Here is the LLM's generated code:
+```r
 # =========================
 # 0. Setup
 # =========================
@@ -449,6 +485,10 @@ packages <- c("tidyverse", "factoextra", "corrplot")
 installed <- packages %in% rownames(installed.packages())
 if(any(!installed)) install.packages(packages[!installed])
 ```
+
+Which handles string formatting cleanly.
+
+::::
 
 <!-- prettier-ignore -->
 ::: insightbox 
