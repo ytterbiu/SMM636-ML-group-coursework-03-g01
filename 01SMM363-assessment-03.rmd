@@ -1,7 +1,6 @@
 ---
 title:
-  "Customer Segmentation in Wholesale Markets: PCA, Clustering, and Large
-  Language Model Evaluation"
+  "Beyond the Binary: Uncovering a Hidden Customer Segment in Wholesale Purchasing Data"
 subtitle: "SMM068 (2025-26) Coursework 03 - Group 01"
 author:
   - "Abdulrahman Alolyan"
@@ -261,6 +260,80 @@ format_spaced_6dp <- function(x) {
 }
 ```
 
+```{r word-count, include=FALSE}
+rmd_lines <- readLines("01SMM363-assessment-03.rmd", warn = FALSE)
+
+# ---- Remove YAML front matter ----
+yaml_bounds <- which(rmd_lines == "---")
+if (length(yaml_bounds) >= 2) {
+  rmd_lines <- rmd_lines[-(yaml_bounds[1]:yaml_bounds[2])]
+}
+
+# ---- Remove code chunks ----
+in_chunk <- FALSE
+keep <- rep(TRUE, length(rmd_lines))
+for (i in seq_along(rmd_lines)) {
+  if (grepl("^```\\{", rmd_lines[i])) { in_chunk <- TRUE; keep[i] <- FALSE; next }
+  if (in_chunk && grepl("^```\\s*$", rmd_lines[i])) { in_chunk <- FALSE; keep[i] <- FALSE; next }
+  if (in_chunk) keep[i] <- FALSE
+}
+rmd_lines <- rmd_lines[keep]
+
+# ---- Identify which lines fall inside counted sections ----
+# Sections to include (level-1 headers only)
+counted_ids <- c("qone", "qtwo", "qthr")
+in_counted_section <- FALSE
+include <- rep(FALSE, length(rmd_lines))
+
+for (i in seq_along(rmd_lines)) {
+  line <- rmd_lines[i]
+  # Detect any level-1 header (# but not ##)
+  if (grepl("^#\\s+[^#]", line)) {
+    # Check if this header belongs to a counted section
+    in_counted_section <- any(sapply(counted_ids, function(id) {
+      grepl(paste0("\\{\\s*#", id, "\\s*\\}"), line)
+    }))
+    next  # skip the header line itself
+  }
+  if (in_counted_section) include[i] <- TRUE
+}
+
+counted_lines <- rmd_lines[include]
+
+# ---- Remove sub-headers (##, ###, etc.) ----
+counted_lines <- counted_lines[!grepl("^#{2,}", counted_lines)]
+
+# ---- Remove table lines (markdown pipes) ----
+counted_lines <- counted_lines[!grepl("^\\|", counted_lines)]
+
+# ---- Remove figure captions: ![caption](...) ----
+counted_lines <- counted_lines[!grepl("^!\\[", counted_lines)]
+
+# ---- Remove fenced div markers (::: name) ----
+counted_lines <- counted_lines[!grepl("^:::", counted_lines)]
+
+# ---- Remove LaTeX commands ----
+counted_lines <- counted_lines[!grepl("^\\\\", counted_lines)]
+
+# ---- Remove HTML comments ----
+counted_lines <- counted_lines[!grepl("^<!--", counted_lines)]
+
+# ---- Remove inline R references like \@ref() ----
+counted_lines <- gsub("\\\\@ref\\([^)]*\\)", "", counted_lines)
+
+# ---- Count ----
+word_count <- sum(stringi::stri_count_words(counted_lines), na.rm = TRUE)
+
+message("Word count (sections qone, qtwo, qthr, body text only): ", word_count)
+
+# Write for LaTeX preamble
+writeLines(
+  paste0("\\newcommand{\\wordcount}{",
+         formatC(word_count, big.mark = ","), "}"),
+  "wordcount.tex"
+)
+```
+
 ```{r load-data, echo=knitr::is_html_output(), include=TRUE}
 set.seed(1234)
 
@@ -298,7 +371,7 @@ corrplot(
 )
 ```
 
-# Principle Component Analysis {#qone}
+# Principle component analysis (PCA) {#qone}
 
 _Apply PCA to the dataset and summarise and intepret key your findings_
 
@@ -376,7 +449,7 @@ TBI
 \newpage
 ```
 
-# Customer Clustering {#qtwo}
+# Customer clustering {#qtwo}
 
 _Perform clustering on the customers_
 
@@ -425,12 +498,13 @@ TBI
 
 # Prompts and LLM outputs {#apd-llm-information}
 
-Throughout this appendix, we use a consistent visual format to distinguish
-between prompts sent to the LLM, its responses, and our own commentary.
+In this appendix, we opted to use a consistent visual format to distinguish
+between prompts sent to the LLM, its responses, and our own commentary. The key
+elements we decided to use are:
 
 ::: {.promptbox}
 
-**Prompt** — shown with a right-hand border. These are the instructions and
+**Prompts to the LLM** — shown with a right-hand border. These are the instructions and
 questions we provided to the model.
 
 :::
@@ -459,7 +533,7 @@ generated output.
 :::
 
 
-## A.1 Principal Component Analysis (PCA)
+## \@ref(qone) PCA LLM dialogue
 
 _Example format below (literally asked base ChatGPT to come up with it's own
 prompt and then answer it - change when we do for real)._
@@ -504,6 +578,9 @@ variables. If the underlying structure is non-linear, consider using t-SNE or
 UMAP instead. Also note that the results are sensitive to outliers — always
 check for extreme values before interpreting the components. 
 :::
+
+
+## \@ref(qtwo) Clustering LLM dialogue
 
 ```{=latex}
 \clearpage
