@@ -31,9 +31,10 @@ output:
     pandoc_args: ["--lua-filter=custom-boxes.lua"]
     number_sections: true
     toc: true
-    citation_package: natbib
+    # citation_package: natbib
     keep_tex: true
 bibliography: references.bib
+csl: ieee.csl
 ---
 
 ```{=latex}
@@ -258,6 +259,20 @@ format_spaced_6dp <- function(x) {
   # Insert space between the first 3 and last 3 decimal digits
   sub("(\\.[0-9]{3})([0-9]{3})$", "\\1 \\2", s)
 }
+#####################################
+# function: format variable names in green in latex (& normal code in html)
+# Usage (in-line): TBI `r format_var_name("dvisit")`
+#####################################
+format_var_name <- function(x) {
+  if (knitr::is_latex_output()) {
+    # replace all "_" with "\_" in va name
+    paste0("\\greentt{", gsub("_", "\\\\_", x), "}")
+  } else {
+    # change to paste0("<code style='color:green'>", x, "</code>") for green
+    # paste0("`", x, "`")
+    paste0("<code style='color:green'>", x, "</code>")
+  }
+}
 ```
 
 ```{r word-count, include=FALSE}
@@ -273,15 +288,23 @@ if (length(yaml_bounds) >= 2) {
 in_chunk <- FALSE
 keep <- rep(TRUE, length(rmd_lines))
 for (i in seq_along(rmd_lines)) {
-  if (grepl("^```\\{", rmd_lines[i])) { in_chunk <- TRUE; keep[i] <- FALSE; next }
-  if (in_chunk && grepl("^```\\s*$", rmd_lines[i])) { in_chunk <- FALSE; keep[i] <- FALSE; next }
+  if (grepl("^```\\{", rmd_lines[i])) {
+    in_chunk <- TRUE
+    keep[i] <- FALSE
+    next
+  }
+  if (in_chunk && grepl("^```\\s*$", rmd_lines[i])) {
+    in_chunk <- FALSE
+    keep[i] <- FALSE
+    next
+  }
   if (in_chunk) keep[i] <- FALSE
 }
 rmd_lines <- rmd_lines[keep]
 
 # ---- Identify which lines fall inside counted sections ----
 # Sections to include (level-1 headers only)
-counted_ids <- c("qone", "qtwo", "qthr")
+counted_ids <- c("intro", "qone", "qtwo", "qthr")
 in_counted_section <- FALSE
 include <- rep(FALSE, length(rmd_lines))
 
@@ -291,7 +314,10 @@ for (i in seq_along(rmd_lines)) {
   if (grepl("^#\\s+[^#]", line)) {
     # Check if this header belongs to a counted section
     in_counted_section <- any(sapply(counted_ids, function(id) {
-      grepl(paste0("\\{\\s*#", id, "\\s*\\}"), line)
+      # [^}]* allows any characters (like spaces, hyphens, classes) before the 
+      # closing }
+      # this is required to count the words in the unnumbered introduction
+      grepl(paste0("\\{\\s*#", id, "[^}]*\\}"), line)
     }))
     next  # skip the header line itself
   }
@@ -334,13 +360,29 @@ writeLines(
 )
 ```
 
-```{r load-data, echo=knitr::is_html_output(), include=TRUE}
+# Introduction {#intro -}
+
+This report analyses annual spending data from 440 clients of a Portuguese
+wholesale distributor, comprising 298 Hotel/Restaurant/Café (HoReCa) and 142
+Retail customers across six product categories: `r format_var_name("Fresh")`,
+`r format_var_name("Milk")`, `r format_var_name("Grocery")`,
+`r format_var_name("Frozen")`, `r format_var_name("Detergents_Paper")`, and
+`r format_var_name("Delicassen")` [@Cardoso2013; @Abreu2011]. Data-driven
+customer segmentation could inform inventory planning, pricing strategy, and
+sales team deployment, yet the existing classification is a simple binary label.
+This analysis uses Principal Component Analysis PCA and clustering to
+investigate whether the existing two-category classification adequately captures
+the structure of customer spending, or whether the data supports a more nuanced
+segmentation.
+
+```{r load-data, echo=knitr::is_html_output(), include=FALSE}
 set.seed(1234)
 
 data <- read.csv("data/Wholesale_customers_data.csv")
 str(data)
 summary(data)
 
+# just get the $ amounts spent
 spending <- data[, c(
   "Fresh",
   "Milk",
@@ -349,25 +391,72 @@ spending <- data[, c(
   "Detergents_Paper",
   "Delicassen"
 )]
+```
+```{r data-table, echo=knitr::is_html_output(), eval=knitr::is_html_output()}
+DT::datatable(
+  data,
+  filter   = "top",
+  options  = list(pageLength = 15, scrollX = TRUE),
+  caption  = "Wholesale customers"
+)
+```
 
-# distribution check
-spending %>%
+
+```{r histograms-overlay, echo=knitr::is_html_output(), include=TRUE, fig.width=10, fig.height=7}
+spending_log <- log1p(spending)
+
+rescale01 <- function(x) (x - min(x)) / (max(x) - min(x))
+
+raw_df <- spending %>%
   pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
-  ggplot(aes(x = Spend)) +
-  geom_histogram(bins = 40, fill = "steelblue", colour = "white") +
-  facet_wrap(~Category, scales = "free") +
-  labs(title = "Distribution of Annual Spending by Category") +
-  theme_minimal()
+  mutate(Transform = "Raw")
 
-# Correlation matrix
+log_df <- spending_log %>%
+  pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
+  mutate(Transform = "Log-transformed")
+
+bind_rows(raw_df, log_df) %>%
+  mutate(Transform = factor(Transform, levels = c("Raw", "Log-transformed"))) %>%
+  group_by(Category, Transform) %>%
+  mutate(Spend_scaled = rescale01(Spend)) %>%
+  ungroup() %>%
+  ggplot(aes(x = Spend_scaled, fill = Transform)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40, colour = "white",
+                 alpha = 0.5, position = "identity") +
+  scale_fill_manual(values = c("Raw" = "steelblue", "Log-transformed" = "firebrick")) +
+  facet_wrap(~Category, scales = "free_y") +
+  labs(
+    title = "Shape Comparison: Raw vs Log-transformed Spending",
+    x = "Normalised Spend (0–1 scaled within each group)",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+```{r corrplots-side-by-side, echo=knitr::is_html_output(), include=TRUE, fig.width=12, fig.height=5.5}
+par(mfrow = c(1, 2))
+
 corrplot(
   cor(spending),
-  method = "color",
-  type = "upper",
-  addCoef.col = "black",
-  tl.col = "black",
-  title = "Correlation Matrix of Spending Variables",
-  mar = c(0, 0, 2, 0)
+  method      = "color",
+  type        = "upper",
+  addCoef.col = TRUE,
+  number.cex  = 0.8,
+  tl.col      = "black",
+  title       = "Raw Spending",
+  mar         = c(0, 0, 2, 0)
+)
+
+corrplot(
+  cor(spending_log),
+  method      = "color",
+  type        = "upper",
+  addCoef.col = TRUE,
+  number.cex  = 0.8,
+  tl.col      = "black",
+  title       = "Raw Spending_log",
+  mar         = c(0, 0, 2, 0)
 )
 ```
 
@@ -382,8 +471,6 @@ See figures...
 # Q1 PCA
 # ==============================================================================
 
-## log-transform (reduce skewness) - same principle as CS1 coursework
-spending_log <- log1p(spending) # log(1+x) handles any zeros safely
 
 ## PCA on scaled log-transformed data
 pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
@@ -587,7 +674,7 @@ check for extreme values before interpreting the components.
 \newpage
 ```
 
-# Reproducibility, accessibility & AI declaration
+# Reproducibility, accessibility & declarations
 
 <!-- BE note: taken out as we are submitting R file separately -->
 <!-- Use: `knitr::purl("cs1-group07.rmd", documentation = 0)` to generate r file -->
@@ -613,6 +700,27 @@ the same repository
 Please note that this commit history reflects updates made to the project
 repository and is not a comprehensive timeline of all contributions by group
 members.
+
+## Word count
+
+The total word count for the core sections of this report is **`r word_count`**
+words (`r ifelse(word_count > 1000, "above", "below")` the 1000 word limit).
+
+
+
+The calculation was performed programmatically directly from the source `.rmd`
+file. An **R** script was used to read the raw document lines and strip out
+non-text elements, including the YAML front matter, R code chunks, sub-headers,
+markdown formatting (tables and figures), and LaTeX/HTML syntax. The script
+strictly isolates lines falling within the core analytical sections (`#intro`,
+`#qone`, `#qtwo`, and `#qthr`) before calculating the final tally using the
+`stringi` package.
+
+The code chunk that performs this calculation is executed silently at the
+beginning of this document, but is reproduced below for transparency:
+
+```{r display-word-count-code, ref.label="word-count", eval=FALSE, echo=TRUE}
+```
 
 ## Generative AI Declaration
 
@@ -669,3 +777,7 @@ members.
 <!-- While GenAI was treated as a collaborator, the final analysis, statistical -->
 <!-- interpretation, and the written content of this report were generated and -->
 <!-- verified by the (human) group members. -->
+
+---
+
+# References {-}
