@@ -58,7 +58,6 @@ This R Markdown document was created as part of a group assignment for SMM636 at
 #   - Abdulrahman Alolyan
 #   - Benjamin Evans
 #   - Basmah Khan
-#   - Bong Su Kil
 #   - Ardi Wira Sudarmo
 # Professor:    Dr. Rui Zhu
 # Institution:  Bayes Business School - City St George's, University of London
@@ -375,7 +374,7 @@ investigate whether the existing two-category classification adequately captures
 the structure of customer spending, or whether the data supports a more nuanced
 segmentation.
 
-```{r load-data, echo=knitr::is_html_output(), include=FALSE}
+```{r load-data, echo=FALSE, include=FALSE}
 set.seed(1234)
 
 data <- read.csv("data/Wholesale_customers_data.csv")
@@ -391,18 +390,7 @@ spending <- data[, c(
   "Detergents_Paper",
   "Delicassen"
 )]
-```
-```{r data-table, echo=knitr::is_html_output(), eval=knitr::is_html_output()}
-DT::datatable(
-  data,
-  filter   = "top",
-  options  = list(pageLength = 15, scrollX = TRUE),
-  caption  = "Wholesale customers"
-)
-```
 
-
-```{r histograms-overlay, echo=knitr::is_html_output(), include=TRUE, fig.width=10, fig.height=7}
 spending_log <- log1p(spending)
 
 rescale01 <- function(x) (x - min(x)) / (max(x) - min(x))
@@ -414,119 +402,197 @@ raw_df <- spending %>%
 log_df <- spending_log %>%
   pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
   mutate(Transform = "Log-transformed")
-
-bind_rows(raw_df, log_df) %>%
-  mutate(Transform = factor(Transform, levels = c("Raw", "Log-transformed"))) %>%
-  group_by(Category, Transform) %>%
-  mutate(Spend_scaled = rescale01(Spend)) %>%
-  ungroup() %>%
-  ggplot(aes(x = Spend_scaled, fill = Transform)) +
-  geom_histogram(aes(y = after_stat(density)), bins = 40, colour = "white",
-                 alpha = 0.5, position = "identity") +
-  scale_fill_manual(values = c("Raw" = "steelblue", "Log-transformed" = "firebrick")) +
-  facet_wrap(~Category, scales = "free_y") +
-  labs(
-    title = "Shape Comparison: Raw vs Log-transformed Spending",
-    x = "Normalised Spend (0–1 scaled within each group)",
-    y = "Density"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "top")
 ```
-
-```{r corrplots-side-by-side, echo=knitr::is_html_output(), include=TRUE, fig.width=12, fig.height=5.5}
-par(mfrow = c(1, 2))
-
-corrplot(
-  cor(spending),
-  method      = "color",
-  type        = "upper",
-  addCoef.col = TRUE,
-  number.cex  = 0.8,
-  tl.col      = "black",
-  title       = "Raw Spending",
-  mar         = c(0, 0, 2, 0)
-)
-
-corrplot(
-  cor(spending_log),
-  method      = "color",
-  type        = "upper",
-  addCoef.col = TRUE,
-  number.cex  = 0.8,
-  tl.col      = "black",
-  title       = "Raw Spending_log",
-  mar         = c(0, 0, 2, 0)
+```{r data-table, echo=knitr::is_html_output(), eval=knitr::is_html_output()}
+DT::datatable(
+  data,
+  filter   = "top",
+  options  = list(pageLength = 15, scrollX = TRUE),
+  caption  = "Wholesale customers"
 )
 ```
 
 # Principle component analysis (PCA) {#qone}
 
-_Apply PCA to the dataset and summarise and intepret key your findings_
+_Apply PCA to the dataset and summarise and interpret key your findings_
+
+- See Appendix \@ref(apd:suppl-methods) for histograms and correlation matrices
 
 See figures...
 
-```{r Q1, echo=knitr::is_html_output(), include=TRUE}
+```{r pca-fit, echo=FALSE, include=FALSE}
 # ==============================================================================
 # Q1 PCA
 # ==============================================================================
 
-
-## PCA on scaled log-transformed data
 pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
 summary(pca_result)
 
-## Scree plot; variance explained
+cumvar <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
+cat("Cumulative variance explained:\n")
+print(round(cumvar, 3))
+
+loadings <- pca_result$rotation[, 1:3]
+print(round(loadings, 3))
+```
+
+```{r pca-scree, echo=FALSE, include=FALSE, fig.width=7, fig.height=5}
 fviz_eig(
   pca_result,
   addlabels = TRUE,
   ylim = c(0, 60),
   main = "Scree Plot - Variance Explained by Each PC"
 )
+```
 
-## cumulative variance
-cumvar <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
-cat("Cumulative variance explained:\n")
-print(round(cumvar, 3))
-
-## loadings
-loadings <- pca_result$rotation[, 1:3]
-print(round(loadings, 3))
-
-## biplot: variables + observations
+```{r pca-biplot, echo=FALSE, include=FALSE, fig.width=8, fig.height=6}
 fviz_pca_biplot(
   pca_result,
-  label = "var",
+  label   = "var",
   col.var = "firebrick",
   col.ind = alpha("steelblue", 0.3),
-  repel = TRUE,
-  title = "PCA Biplot (log-transformed, standardised data)"
+  repel   = TRUE,
+  title   = "PCA Biplot (log-transformed, standardised data)"
 )
+```
 
-## variable contribution plots
+```{r pca-contrib-pc, echo=FALSE, include=FALSE, fig.width=7, fig.height=4}
+# Opted to hide these for now 
+# (don't think we have space and they don't add too much)
+# Even including in appendix is limited - easier to include table
 fviz_contrib(
   pca_result,
   choice = "var",
-  axes = 1,
-  title = "Variable Contributions to PC1"
+  axes   = 1,
+  title  = "Variable Contributions to PC1"
 )
+
 fviz_contrib(
   pca_result,
   choice = "var",
-  axes = 2,
-  title = "Variable Contributions to PC2"
+  axes   = 2,
+  title  = "Variable Contributions to PC2"
 )
+```
 
-## colour by channel (similar to lectures)
+```{r pca-loadings-table, echo=FALSE, include=FALSE}
+loadings_df <- as.data.frame(round(pca_result$rotation[, 1:3], 3))
+colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+
+kable(
+  loadings_df,
+  caption  = "PCA loadings (first three components). Values over 0.4 are highlighted in bold.",
+  linesep  = "",
+  booktabs = TRUE
+) %>%
+  kable_styling(
+    full_width = FALSE,
+    position   = "center"
+  ) %>%
+  column_spec(2, bold = abs(loadings_df$PC1) >= 0.4) %>%
+  column_spec(3, bold = abs(loadings_df$PC2) >= 0.4) %>%
+  column_spec(4, bold = abs(loadings_df$PC3) >= 0.4)
+```
+
+```{r pca-channel, echo=FALSE, include=FALSE, fig.width=8, fig.height=6}
 fviz_pca_ind(
   pca_result,
-  geom.ind = "point",
-  col.ind = factor(data$Channel),
-  palette = c("#E64B35", "#4DBBD5"),
+  geom.ind    = "point",
+  col.ind     = factor(data$Channel),
+  palette     = c("#E64B35", "#4DBBD5"),
   addEllipses = TRUE,
   legend.title = "Channel",
-  title = "PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
+  title       = "PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
 )
+```
+
+```{r pca-grid, echo=FALSE, include=TRUE, fig.width=12, fig.height=10, fig.cap="Principal Component Analysis of log-transformed, standardised spending data. (a) Scree plot showing the percentage of variance explained by each component. (b) Loadings of the original variables on the first four principal components. Values exceeding 0.4 in magnitude indicate strong contributions. (c) Biplot overlaying variable loadings (red arrows) on individual observations. (d) Individuals projected onto PC1-PC2, coloured by distribution channel (1 = HoReCa, 2 = Retail) with 95% concentration ellipses."}
+library(ggpubr)
+
+# --- Top left: Scree plot ---
+p1 <- fviz_eig(
+  pca_result,
+  addlabels = TRUE,
+  ylim = c(0, 60),
+  main = "(a) Scree Plot - Variance Explained by Each PC"
+)
+
+# --- Top right: Loadings table as a grob ---
+loadings_df <- as.data.frame(round(pca_result$rotation[, 1:3], 3))
+colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+
+# --- Top right: Loadings table ---
+loadings_df <- as.data.frame(pca_result$rotation[, 1:4])
+colnames(loadings_df) <- c("PC1", "PC2", "PC3", "PC4")
+# loadings_df <- as.data.frame(pca_result$rotation[, 1:3])
+# colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+loadings_df[] <- lapply(loadings_df, function(x) format(round(x, 3), nsmall = 3))
+
+p2 <- ggtexttable(
+  loadings_df,
+  theme = ttheme(
+    "blank",
+    tbody.style = tbody_style(
+      size  = 13,
+      hjust = 1.00, #controls alignment {0.00, 0.5, 1.00} 
+      x     = 0.95, #controls alignment {0.05, 0.5, 0.95} 
+      fill  = "white"
+    ),
+    colnames.style = colnames_style(
+      size  = 13,
+      face  = "bold",
+      hjust = 1.00,
+      x     = 0.95,
+      fill  = "white"
+    ),
+    rownames.style = rownames_style(
+      size  = 13,
+      face  = "plain",
+      hjust = 0,
+      x     = 0.05,
+      fill  = "white"
+    )
+  )
+) %>%
+  tab_add_hline(at.row = 1:2, row.side = "top", linewidth = 2) %>%
+  tab_add_hline(at.row = nrow(loadings_df) + 1, row.side = "bottom", linewidth = 2) +
+  labs(title = "(b) PCA Loadings") +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 13),
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.background = element_rect(fill = "white", colour = NA)
+  )
+
+# --- Bottom left: Biplot ---
+p3 <- fviz_pca_biplot(
+  pca_result,
+  label   = "var",
+  col.var = "firebrick",
+  col.ind = alpha("steelblue", 0.3),
+  repel   = TRUE,
+  title   = "(c) PCA Biplot (log-transformed, standardised data)"
+)
+
+# --- Bottom right: Channel plot ---
+p4 <- fviz_pca_ind(
+  pca_result,
+  geom.ind     = "point",
+  col.ind      = factor(data$Channel),
+  palette      = c("#E64B35", "#4DBBD5"),
+  addEllipses  = TRUE,
+  legend.title = "Channel",
+  title        = "(d) PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
+)
+
+# BE note: qol to get bottom two plots to align
+ggplot_build(p3)$layout$panel_params[[1]]$y.range
+ggplot_build(p4)$layout$panel_params[[1]]$y.range
+
+p3 <- p3 + coord_cartesian(ylim = c(-5.58, 5.24))
+p4 <- p4 + coord_cartesian(ylim = c(-5.58, 5.24))
+
+# --- Combine 2x2 ---
+(p1 | p2) / (p3 | p4)
 ```
 
 TBI
@@ -602,6 +668,148 @@ for (k in 2:5) {
 ```
 
 # Repeating \@ref(qone) & \@ref(qtwo) using an LLM {#qthr}
+
+
+- Using same prompts for 2 LLMs for consistency / standardiseation.
+- 'to ensure compatibility identical prompts were used for both models' 
+(described in full in the appendix - link to section)
+
+Example table:
+
+```{r llm-comparison, echo=FALSE}
+# define symbols
+sym <- list(
+  Y = "$\\checkmark$",      # ● addressed unprompted
+  P = "$\\circ$",         # ○ partial / after prompting
+  N = "\\texttimes"       # ✗ missed entirely
+)
+
+sym_legend <- paste0(
+  sym$Y, "~= addressed unprompted; ",
+  sym$P, "~= partial; ",
+  sym$N, "~= missed entirely."
+)
+
+# data structure 
+# > can replace "?" with Y/P/N after running the LLM experiment
+
+rows <- tribble(
+  ~group,            ~label,                                          ~ours, ~chatgpt, ~claude,
+  "Preprocessing",   "Excluded Channel \\& Region",                   "Y",   "?",      "?",
+  "Preprocessing",   "Identified skewness in spending variables",      "Y",   "?",      "?",
+  "Preprocessing",   "Applied log transform",                         "Y",   "?",      "?",
+  "Preprocessing",   "TBC",  "Y",   "?",      "?",
+  "PCA",             "Scree plot / variance explained",                "Y",   "?",      "?",
+  "PCA",             "Interpreted PC1 as channel axis",                "Y",   "?",      "?",
+  "PCA",             "TBC",         "Y",   "?",      "?",
+  "Clustering",      "TBC",       "Y",   "?",      "?",
+  "Clustering",      "TBC",    "Y",   "?",      "?",
+  "Clustering",      "TBC",              "Y",   "?",      "?",
+  "Clustering",      "TBC",       "Y",   "?",      "?",
+  "Interpretation",  "Commercial framing of segments",                 "Y",   "?",      "?",
+  "Interpretation",  "Acknowledged limitations",                       "Y",   "?",      "?",
+  "Interpretation",  "Suggested alternative methods",                  "Y",   "?",      "?"
+)
+
+# map codes to symbols
+map_sym <- function(x) {
+  dplyr::case_match(x,
+    "Y" ~ sym$Y,
+    "P" ~ sym$P,
+    "N" ~ sym$N,
+    .default = x
+  )
+}
+
+# compute totals pre symbol mapping
+score_col <- function(col) {
+  n_total <- sum(col %in% c("Y", "P", "N"))
+  if (n_total == 0) return("---")
+  n_y <- sum(col == "Y")
+  n_p <- sum(col == "P")
+  # format: "10/14 (2P)" or "14/14" if no partials
+  if (n_p > 0) {
+    paste0(n_y, "/", n_total, " (", n_p, "P)")
+  } else {
+    paste0(n_y, "/", n_total)
+  }
+}
+
+totals <- tibble(
+  group   = "Totals",
+  label   = "\\textbf{Score}",
+  ours    = score_col(rows$ours),
+  chatgpt = score_col(rows$chatgpt),
+  claude  = score_col(rows$claude)
+)
+
+# combine rows + totals, then map symbols
+all_rows <- bind_rows(rows, totals) %>%
+  mutate(across(c(ours, chatgpt, claude), map_sym))
+
+#compute pack_rows indices from group column
+group_indices <- all_rows %>%
+  mutate(row = row_number()) %>%
+  group_by(group) %>%
+  summarise(start = min(row), end = max(row), .groups = "drop")
+
+group_indices <- group_indices %>%
+  mutate(group = factor(group, levels = unique(all_rows$group))) %>%
+  arrange(group)
+
+# build kable
+kable_data <- all_rows %>%
+  select(label, ours, chatgpt, claude)
+
+colnames(kable_data) <- c("Analysis Step", "Our Analysis", "ChatGPT (4o)", "Claude")
+
+caption_text <- paste0(
+  "Comparison of analytical steps: our pipeline vs.\\ two LLMs. ",
+  sym_legend
+)
+
+tbl <- kable(
+  kable_data,
+  format    = "latex",
+  booktabs  = TRUE,
+  escape    = FALSE,
+  align     = c("l", "c", "c", "c"),
+  caption   = caption_text,
+  linesep   = ""
+) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size     = 10
+  )
+
+# -apply pack_rows 
+for (i in seq_len(nrow(group_indices))) {
+  grp <- as.character(group_indices$group[i])
+  # skip the totals row — it stands alone with a rule above it
+  if (grp == "Totals") next
+  tbl <- tbl %>%
+    pack_rows(
+      grp,
+      group_indices$start[i],
+      group_indices$end[i],
+      bold         = TRUE,
+      italic       = FALSE,
+      hline_before = (i > 1)
+    )
+}
+
+# if (knitr::is_latex_output()) {
+#   # cat("\\begingroup\n")
+#   cat("\\renewcommand{\\arraystretch}{1.3}\n")
+# }
+
+tbl 
+
+# if (knitr::is_latex_output()) {
+#   # cat("\\endgroup\n")
+# }
+# # tbl
+```
 
 ```{=latex}
 \newpage
@@ -719,6 +927,77 @@ check for extreme values before interpreting the components.
 \clearpage
 \newpage
 ```
+
+# Supplementary methodology {#apd:suppl-methods}
+
+
+```{r histograms-overlay, echo=FALSE, include=TRUE, fig.width=10, fig.height=7, fig.cap="Shape comparison of raw and log-transformed spending distributions by product category. To facilitate direct comparison of the distribution shapes, all spend values were min-max scaled to a 0–1 range within their respective categories. The raw data (blue) demonstrates a severe right skew across all categories, heavily influenced by extreme outliers. The `log1p` transformation (red) effectively compresses this long tail, yielding much more symmetric, normally distributed shapes suitable for parametric modeling."}
+
+bind_rows(raw_df, log_df) %>%
+  mutate(
+    Transform = factor(Transform, levels = c("Raw", "Log-transformed"))
+  ) %>%
+  group_by(Category, Transform) %>%
+  mutate(Spend_scaled = rescale01(Spend)) %>%
+  ungroup() %>%
+  ggplot(aes(x = Spend_scaled, fill = Transform)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    bins = 40,
+    colour = "white",
+    alpha = 0.5,
+    position = "identity"
+  ) +
+  scale_fill_manual(
+    values = c("Raw" = "steelblue", "Log-transformed" = "firebrick")
+  ) +
+  facet_wrap(~Category, scales = "free_y") +
+  labs(
+    title = "Shape Comparison: Raw vs Log-transformed Spending",
+    x = "Normalised Spend (0–1 scaled within each group)",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+The overlapping histograms in Figure \@ref(fig:histograms-overlay) highlight the
+rationale for transforming the spending data. The raw spending figures exhibit a
+strong rightward skew across all six product categories, indicating that while
+most customers spend relatively small amounts, a long tail of high-spending
+customers dominates the scale. Applying a log transformation (`log1p`)
+successfully pulls in these extreme values, centring the bulk of the data and
+producing much more symmetric, bell-shaped distributions.
+
+
+```{r corrplots-side-by-side, echo=knitr::is_html_output(), include=TRUE, fig.width=12, fig.height=5.5, fig.cap="Pairwise correlation matrices of the six product categories, comparing linear relationships using raw spending data (left) versus log-transformed spending data (right)."}
+par(mfrow = c(1, 2))
+
+corrplot(
+  cor(spending),
+  method      = "color",
+  type        = "upper",
+  addCoef.col = TRUE,
+  number.cex  = 0.8,
+  tl.col      = "black",
+  title       = "Raw Spending",
+  mar         = c(0, 0, 2, 0)
+)
+
+corrplot(
+  cor(spending_log),
+  method      = "color",
+  type        = "upper",
+  addCoef.col = TRUE,
+  number.cex  = 0.8,
+  tl.col      = "black",
+  title       = "Raw Spending_log",
+  mar         = c(0, 0, 2, 0)
+)
+```
+
+The side-by-side correlation plots reveal the underlying purchasing relationships between product categories before and after adjusting for scale. Both matrices highlight a distinct cluster of highly correlated spending: Grocery, Detergents_Paper, and Milk show strong positive linear relationships, suggesting they are frequently purchased together in bulk. While the log transformation preserves this core structure, it slightly softens the most extreme correlations (for instance, the correlation between Grocery and Detergents_Paper drops from 0.92 to 0.80). This indicates that in the raw data, a few extreme outlier purchases were artificially inflating the strength of that linear relationship.
+
 
 # Reproducibility, accessibility & declarations
 
