@@ -551,6 +551,52 @@ scaled_data <- scale(spending_log)
 
 TBI
 
+## KMeans
+
+```{r}
+
+KMeans.results <- list()
+
+for (k in 2:5) {
+  km.out = kmeans(scaled_data, centers= k, nstart = 20)  
+  KMeans.results[[k]] <- km.out
+}
+
+```
+
+
+```{r}
+
+for (k in 2:5) {
+  km.out <- KMeans.results[[k]]
+  print(fviz_cluster(km.out, scaled_data,
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("KMeans (k=%s)", k) )
+  )
+}
+
+```
+
+```{r}
+
+fviz_nbclust(scaled_data, kmeans, method='silhouette')
+
+```
+
+```{r}
+
+for (k in 2:5) {
+  km.out <- KMeans.results[[k]]
+  print(
+    fviz_silhouette(silhouette(km.out$cluster, dist(scaled_data)^2))
+  )
+}
+
+```
+
+
+
 ```{=latex}
 \newpage
 ```
