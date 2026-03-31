@@ -120,19 +120,29 @@ cat("\014") # Clean console
 
 ```{r load-dependencies, include=FALSE, echo=FALSE}
 #------------------- Load dependencies / external libraries -------------------#
-# --- Data Manipulation & Plotting ---
-library(tidyverse) # loads dplyr, tidyr, ggplot2, purrr (& others)
-library(patchwork) # for combining multiple plots into one figure
+# --- Core Data Manipulation ---
+library(tidyverse)  # loads dplyr, tidyr, ggplot2, purrr, etc.
+
+# --- Visualization & Plot Arrangement ---
+library(patchwork)  # combining multiple ggplot objects
+library(gridExtra)  # arranging base/grid plots
+library(ggpubr)     # publication-ready plot themes/utilities
+library(corrplot)   # correlation heatmaps
+library(GGally)     # pairs plots
+library(factoextra) # PCA & clustering visualizations
+
+# --- Analytics & Modeling ---
+library(NbClust)    # optimal-k diagnostics
+
+# NOTE: The packages below are deliberately NOT loaded into the global 
+# environment to prevent function masking conflicts (e.g., MASS::select 
+# breaking dplyr::select). Call their functions directly using namespaces:
+# cluster::daisy(), MASS::isoMDS()
+# library(MASS)     
+# library(cluster)  
 
 # --- Reporting & Tables ---
-library(kableExtra) # for general tables
-
-library(factoextra)   # PCA & clustering visualisation
-library(cluster)      # silhouette, pam
-library(NbClust)      # optimal-k diagnostics
-library(corrplot)     # correlation heatmap
-library(gridExtra)    # arranging plots
-library(GGally)       # pairs plot
+library(kableExtra) # for formatting output tables
 ```
 
 ```{r custom-functions, include=FALSE, echo=FALSE}
@@ -369,7 +379,7 @@ Retail customers across six product categories: `r format_var_name("Fresh")`,
 `r format_var_name("Delicassen")` [@Cardoso2013; @Abreu2011]. Data-driven
 customer segmentation could inform inventory planning, pricing strategy, and
 sales team deployment, yet the existing classification is a simple binary label.
-This analysis uses Principal Component Analysis PCA and clustering to
+This analysis uses Principal Component Analysis (PCA) and clustering to
 investigate whether the existing two-category classification adequately captures
 the structure of customer spending, or whether the data supports a more nuanced
 segmentation.
@@ -414,11 +424,35 @@ DT::datatable(
 
 # Principle component analysis (PCA) {#qone}
 
-_Apply PCA to the dataset and summarise and interpret key your findings_
+<!-- _Apply PCA to the dataset and summarise and interpret key your findings_ -->
 
-- See Appendix \@ref(apd:suppl-methods) for histograms and correlation matrices
+To address the right-skewness observed across all six spending variables
+(skewness > 1.5 in each case), a log-transformation was applied to normalise the
+distributions (Appendix Figures \@ref(fig:histograms-overlay) &
+\@ref(fig:corrplots-side-by-side)). The variables were then standardised to
+ensure equal contribution to the PCA, preventing categories with naturally
+larger absolute expenditures from dominating the model.
 
-See figures...
+As illustrated in the scree plot (Figure \@ref(fig:pca-grid)a), the first two
+principal components capture the majority of the underlying data structure,
+together explaining 71.3% of the total variance (PC1: 44.1%; PC2: 27.2%).
+
+The component loadings (Figure \@ref(fig:pca-grid)b) reveal distinct commercial
+purchasing patterns. PC1 acts as the primary "channel axis," driven by strong
+positive loadings for `r format_var_name("Grocery")` (0.571),
+`r format_var_name("Detergents_Paper")` (0.551), and `r format_var_name("Milk")`
+(0.542), contrasted with near-zero or negative loadings for 
+`r format_var_name("Fresh")` and `r format_var_name("Frozen")`. PC2 serves as a
+"perishable volume axis," characterised by high positive loadings for 
+`r format_var_name("Fresh")` (0.590), `r format_var_name("Frozen")` (0.590), and 
+`r format_var_name("Delicassen")` (0.530), capturing the scale of fresh food
+purchasing independent of business type. The biplot (Figure \@ref(fig:pca-grid)d)
+confirms this visually, showing clear separation between HoReCa and Retail
+customers along PC1. PCA is restricted to continuous inputs, necessitating the
+exclusion of `r format_var_name("Channel")` and `r format_var_name("Region")`; a
+Gower-distance MDS analysis incorporating these variables is reported in
+Appendix~\ref{apd:suppl-methods} and yields consistent results.
+
 
 ```{r pca-fit, echo=FALSE, include=FALSE}
 # ==============================================================================
@@ -507,7 +541,6 @@ fviz_pca_ind(
 ```
 
 ```{r pca-grid, echo=FALSE, include=TRUE, fig.width=12, fig.height=10, fig.cap="Principal Component Analysis of log-transformed, standardised spending data. (a) Scree plot showing the percentage of variance explained by each component. (b) Loadings of the original variables on the first four principal components. Values exceeding 0.4 in magnitude indicate strong contributions. (c) Biplot overlaying variable loadings (red arrows) on individual observations. (d) Individuals projected onto PC1-PC2, coloured by distribution channel (1 = HoReCa, 2 = Retail) with 95% concentration ellipses."}
-library(ggpubr)
 
 # --- Top left: Scree plot ---
 p1 <- fviz_eig(
@@ -585,8 +618,8 @@ p4 <- fviz_pca_ind(
 )
 
 # BE note: qol to get bottom two plots to align
-ggplot_build(p3)$layout$panel_params[[1]]$y.range
-ggplot_build(p4)$layout$panel_params[[1]]$y.range
+# ggplot_build(p3)$layout$panel_params[[1]]$y.range
+# ggplot_build(p4)$layout$panel_params[[1]]$y.range
 
 p3 <- p3 + coord_cartesian(ylim = c(-5.58, 5.24))
 p4 <- p4 + coord_cartesian(ylim = c(-5.58, 5.24))
@@ -759,7 +792,7 @@ group_indices <- group_indices %>%
 
 # build kable
 kable_data <- all_rows %>%
-  select(label, ours, chatgpt, claude)
+  dplyr::select(label, ours, chatgpt, claude)
 
 colnames(kable_data) <- c("Analysis Step", "Our Analysis", "ChatGPT (4o)", "Claude")
 
@@ -930,8 +963,9 @@ check for extreme values before interpreting the components.
 
 # Supplementary methodology {#apd:suppl-methods}
 
+## Raw data distribution, correlations, and skewness {#apd:suppl-skew}
 
-```{r histograms-overlay, echo=FALSE, include=TRUE, fig.width=10, fig.height=7, fig.cap="Shape comparison of raw and log-transformed spending distributions by product category. To facilitate direct comparison of the distribution shapes, all spend values were min-max scaled to a 0–1 range within their respective categories. The raw data (blue) demonstrates a severe right skew across all categories, heavily influenced by extreme outliers. The `log1p` transformation (red) effectively compresses this long tail, yielding much more symmetric, normally distributed shapes suitable for parametric modeling."}
+```{r histograms-overlay, echo=FALSE, include=TRUE, fig.width=10, fig.height=7, fig.cap="Shape comparison of raw and log-transformed spending distributions by product category. To facilitate direct comparison of the distribution shapes, all spend values were min-max scaled to a 0–1 range within their respective categories. The raw data (blue) demonstrates a right skew across all categories, influenced by extreme outliers. The `log1p` transformation (red) effectively compresses this long tail, yielding more symmetric distributions that ensure variance-based methods (PCA) and distance-based methods (clustering) are not dominated by extreme outliers."}
 
 bind_rows(raw_df, log_df) %>%
   mutate(
@@ -966,8 +1000,8 @@ rationale for transforming the spending data. The raw spending figures exhibit a
 strong rightward skew across all six product categories, indicating that while
 most customers spend relatively small amounts, a long tail of high-spending
 customers dominates the scale. Applying a log transformation (`log1p`)
-successfully pulls in these extreme values, centring the bulk of the data and
-producing much more symmetric, bell-shaped distributions.
+successfully 'pulls in' these extreme values, centring the bulk of the data and
+producing much more symmetric distributions.
 
 
 ```{r corrplots-side-by-side, echo=knitr::is_html_output(), include=TRUE, fig.width=12, fig.height=5.5, fig.cap="Pairwise correlation matrices of the six product categories, comparing linear relationships using raw spending data (left) versus log-transformed spending data (right)."}
@@ -980,7 +1014,7 @@ corrplot(
   addCoef.col = TRUE,
   number.cex  = 0.8,
   tl.col      = "black",
-  title       = "Raw Spending",
+  title       = "Raw spending",
   mar         = c(0, 0, 2, 0)
 )
 
@@ -991,12 +1025,93 @@ corrplot(
   addCoef.col = TRUE,
   number.cex  = 0.8,
   tl.col      = "black",
-  title       = "Raw Spending_log",
+  title       = "Log-transformed spending",
   mar         = c(0, 0, 2, 0)
 )
 ```
 
-The side-by-side correlation plots reveal the underlying purchasing relationships between product categories before and after adjusting for scale. Both matrices highlight a distinct cluster of highly correlated spending: Grocery, Detergents_Paper, and Milk show strong positive linear relationships, suggesting they are frequently purchased together in bulk. While the log transformation preserves this core structure, it slightly softens the most extreme correlations (for instance, the correlation between Grocery and Detergents_Paper drops from 0.92 to 0.80). This indicates that in the raw data, a few extreme outlier purchases were artificially inflating the strength of that linear relationship.
+The side-by-side correlation plots reveal the underlying purchasing
+relationships between product categories before and after adjusting for scale.
+Both matrices highlight a distinct cluster of highly correlated spending:
+`r format_var_name("Grocery")`, `r format_var_name("Detergents_Paper")`, and
+`r format_var_name("Milk")` show strong positive linear relationships,
+suggesting they are frequently purchased together in bulk. While the log
+transformation preserves this core structure, it slightly softens the most
+extreme correlations (for instance, the correlation between
+`r format_var_name("Grocery")` and `r format_var_name("Detergents_Paper")`
+drops from `r formatC(cor(spending$Grocery, spending$Detergents_Paper), format = "f", digits = 2)`
+to `r formatC(cor(spending_log$Grocery, spending_log$Detergents_Paper), format = "f", digits = 2)`).
+This indicates that in the raw data, a few extreme outlier purchases were
+artificially inflating the strength of that linear relationship.
+
+
+## Multi-dimensional scaling {#apd:suppl-mds}
+
+```{r mds-side-by-side, echo=FALSE, include=TRUE, fig.width=12, fig.height=5.5, fig.cap="Non-metric MDS using Gower’s distance across all eight variables (six log-transformed continuous spending categories plus Channel and Region). Points are coloured by Channel (left) and Region (right). Unlike PCA, Gower’s distance forces distinct spatial separation based on categorical mismatches, resulting in six artificial clusters corresponding to the cross-tabulation of the two Channels and three Regions."}
+
+# Gower distance on all 8 variables
+mds_data <- data.frame(
+  Channel = factor(data$Channel, labels = c("HoReCa", "Retail")),
+  Region  = factor(data$Region,  labels = c("Lisbon", "Oporto", "Other")),
+  spending_log
+)
+
+gow     <- cluster::daisy(mds_data, metric = "gower")
+mds_fit <- MASS::isoMDS(gow, k = 2, trace = FALSE)
+mds_pts <- as.data.frame(mds_fit$points)
+colnames(mds_pts) <- c("MDS1", "MDS2")
+
+mds_pts$Channel <- mds_data$Channel
+mds_pts$Region  <- mds_data$Region
+
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+
+# Left: coloured by Channel
+plot(mds_pts$MDS1, mds_pts$MDS2,
+     col  = ifelse(mds_pts$Channel == "HoReCa", "#E64B35", "#4DBBD5"),
+     pch  = 19, cex = 0.8,
+     xlab = "MDS1", ylab = "MDS2",
+     main = "(a) Coloured by Channel")
+legend("topleft",
+       legend = c("HoReCa", "Retail"),
+       col    = c("#E64B35", "#4DBBD5"),
+       pch    = 19, cex = 0.9, bty = "n")
+
+# Right: coloured by Region
+region_cols <- c(Lisbon = "#E69F00", Oporto = "#009E73", Other = "#CC79A7")
+plot(mds_pts$MDS1, mds_pts$MDS2,
+     col  = region_cols[mds_pts$Region],
+     pch  = 19, cex = 0.8,
+     xlab = "MDS1", ylab = "MDS2",
+     main = "(b) Coloured by Region")
+legend("topleft",
+       legend = names(region_cols),
+       col    = region_cols,
+       pch    = 19, cex = 0.9, bty = "n")
+
+# mds_fit$stress
+```
+
+Figure \@ref(fig:mds-side-by-side) presents a non-metric MDS solution computed
+from Gower's distance across all eight variables, incorporating the categorical
+`r format_var_name("Channel")` and `r format_var_name("Region")` columns excluded
+from the PCA. Because Gower's metric treats any categorical mismatch as a
+maximal distance contribution on that variable, the resulting spatial map is
+dominated by these labels rather than underlying spending behaviour.
+
+Panel (a) shows separation by `r format_var_name("Channel")` along the primary
+axis (MDS1), while Panel (b) reveals further stratification by 
+`r format_var_name("Region")` along MDS2. The result is a forced stratification
+into six spatial clusters reflecting the Channel $\times$ Region
+cross-tabulation. While there is minor regional intermingling (e.g., two Oporto
+customers mapping near the Lisbon cluster), the overall spatial map merely
+reflects the cross-tabulation of the categorical labels rather than organic,
+dataset-wide purchasing patterns. The solution's stress value of
+`r formatC(mds_fit$stress, format = "fg", digits = 3)` further indicates a 
+mediocre fit, falling above the conventional threshold of 10 for reliable
+low-dimensional representation. This confirms that the PCA approach, relying
+purely on continuous spending variables, is better suited to uncovering natural
+commercial structure in this dataset.
 
 
 # Reproducibility, accessibility & declarations
