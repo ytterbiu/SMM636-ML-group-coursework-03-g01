@@ -688,11 +688,92 @@ fviz_nbclust(scaled_data, kmeans, method='silhouette')
 for (k in 2:5) {
   km.out <- KMeans.results[[k]]
   print(
-    fviz_silhouette(silhouette(km.out$cluster, dist(scaled_data)^2))
+    fviz_silhouette(cluster::silhouette(km.out$cluster, dist(scaled_data)^2))
   )
 }
 
 ```
+
+### Split up by Channel
+
+```{r}
+
+spending.cols = c('Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen')
+
+scaled_df <- cbind(data[c('Channel', 'Region')], scaled_data)
+
+ch1_scaled_df <- scaled_df |> filter(Channel == 1)
+
+ch2_scaled_df <- scaled_df |> filter(Channel == 2)
+
+```
+
+
+
+```{r}
+
+
+for (k in 2:5) {
+  km.out = kmeans(ch1_scaled_df[spending.cols], centers= k, nstart = 20)  
+  
+  print(fviz_cluster(km.out,
+                     ch1_scaled_df[spending.cols],
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("Channel 1KMeans (k=%s)", k) )
+  )
+}
+
+```
+
+
+## MDS scaled
+
+```{r}
+
+# Gower distance on all 8 variables  unscaled (Channel & Region as factors)
+scaled_df$Channel <- factor(data$Channel)
+scaled_df$Region  <- factor(data$Region)
+
+gow_scaled <- cluster::daisy(scaled_df, metric = "gower")
+ 
+# Non-metric MDS
+mds_scaled <- MASS::isoMDS(gow_scaled, k = 2)
+
+```
+
+
+```{r}
+
+mds_scaled_out <- data.frame(
+  MDS1 = mds_scaled$points[, 1],
+  MDS2 = mds_scaled$points[, 2],
+  Region = scaled_df$Region,
+  Channel = scaled_df$Channel
+)
+
+ggplot(mds_scaled_out) +
+  geom_point(aes(x=MDS1, y=MDS2, colour=Region, shape=Channel)) +
+  labs(title = 'MDS using Gower distance of Region, Channel and scaled 6 spending variables')
+
+```
+
+```{r}
+
+for (k in 4:8) {
+  km.out = kmeans(mds_scaled$points, centers= k, nstart = 20)  
+  
+  print(fviz_cluster(km.out,
+                     mds_scaled$points,
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("KMeans (k=%s) on MDS output of scaled data", k),
+                     xlab='' , ylab='yy')
+  )
+}
+
+```
+
 
 
 
