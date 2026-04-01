@@ -414,7 +414,19 @@ raw_df <- spending %>%
 log_df <- spending_log %>%
   pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
   mutate(Transform = "Log-transformed")
+
+# add data to import into in-line text
+# standardise log-transformed data
+scaled_data <- scale(spending_log)
+
+# PCA
+pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
+
+# Skewness (raw)
+skew_vals <- apply(spending, 2, e1071::skewness)
+min_skew  <- min(skew_vals)
 ```
+
 ```{r data-table, echo=knitr::is_html_output(), eval=knitr::is_html_output()}
 DT::datatable(
   data,
@@ -428,18 +440,19 @@ DT::datatable(
 
 <!-- _Apply PCA to the dataset and summarise and interpret key your findings_ -->
 
-To address the right-skewness observed across all six spending variables
-(skewness > 1.5 in each case), a log-transformation was applied to normalise the
-distributions (Appendix Figures \@ref(fig:histograms-overlay) &
-\@ref(fig:corrplots-side-by-side)). The variables were then standardised to
-ensure equal contribution to the PCA, preventing categories with naturally
-larger absolute expenditures from dominating the model.
+A log-transformation was applied to normalise the distributions (Appendix,
+Figures \@ref(fig:histograms-overlay) & \@ref(fig:corrplots-side-by-side)) and
+address the right-skewness observed across all six spending variables 
+(skewness > `r formatC(min_skew, format = "f", digits = 1)`
+for all). The variables were then standardised to ensure equal contribution to
+the PCA, preventing categories with naturally larger absolute expenditures from
+dominating the model.
 
-As illustrated in the scree plot (Figure \@ref(fig:pca-grid)a), the first two
+As shown in Figure \@ref(fig:pca-grid)(a) the first two
 principal components capture the majority of the underlying data structure,
 together explaining 71.3% of the total variance (PC1: 44.1%; PC2: 27.2%).
 
-The component loadings (Figure \@ref(fig:pca-grid)b) reveal distinct commercial
+The component loadings in Figure \@ref(fig:pca-grid)(b) reveal distinct commercial
 purchasing patterns. PC1 acts as the primary "channel axis," driven by strong
 positive loadings for `r format_var_name("Grocery")` (0.571),
 `r format_var_name("Detergents_Paper")` (0.551), and `r format_var_name("Milk")`
@@ -448,12 +461,13 @@ positive loadings for `r format_var_name("Grocery")` (0.571),
 "perishable volume axis," characterised by high positive loadings for 
 `r format_var_name("Fresh")` (0.590), `r format_var_name("Frozen")` (0.590), and 
 `r format_var_name("Delicassen")` (0.530), capturing the scale of fresh food
-purchasing independent of business type. The biplot (Figure \@ref(fig:pca-grid)d)
+purchasing independent of business type. The biplot (Figure \@ref(fig:pca-grid)(d))
 confirms this visually, showing clear separation between HoReCa and Retail
 customers along PC1. PCA is restricted to continuous inputs, necessitating the
-exclusion of `r format_var_name("Channel")` and `r format_var_name("Region")`; a
-Gower-distance MDS analysis incorporating these variables is reported in
-Appendix~\ref{apd:suppl-methods} and yields consistent results.
+exclusion of `r format_var_name("Channel")` and `r format_var_name("Region")`. 
+A Gower-distance MDS analysis incorporating these variables (Appendix,
+\@ref(apd:suppl-mds)) confirms that the categorical labels dominate the distance
+metric, validating the decision to analyse spending variables independently.
 
 
 ```{r pca-fit, echo=FALSE, include=FALSE}
