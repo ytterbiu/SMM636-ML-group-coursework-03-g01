@@ -139,7 +139,9 @@ library(NbClust)    # optimal-k diagnostics
 # breaking dplyr::select). Call their functions directly using namespaces:
 # cluster::daisy(), MASS::isoMDS()
 # library(MASS)     
-# library(cluster)  
+# library(cluster)
+
+library(mclust)
 
 # --- Reporting & Tables ---
 library(kableExtra) # for formatting output tables
@@ -731,7 +733,7 @@ for (k in 2:5) {
 
 ```{r}
 
-# Gower distance on all 8 variables  unscaled (Channel & Region as factors)
+# Gower distance on all 8 variables scaled (Channel & Region as factors)
 scaled_df$Channel <- factor(data$Channel)
 scaled_df$Region  <- factor(data$Region)
 
@@ -774,6 +776,24 @@ for (k in 4:8) {
 
 ```
 
+
+## GMM
+
+```{r}
+
+gmm_mds_scaled <- Mclust(data=mds_scaled_out[c('MDS1', 'MDS2')])
+
+summary(gmm_mds_scaled, parameters=TRUE)
+
+```
+
+
+```{r}
+plot(gmm_mds_scaled, what="BIC")
+plot(gmm_mds_scaled, what="classification")
+plot(gmm_mds_scaled, what="uncertainty")
+plot(gmm_mds_scaled, what="density")
+```
 
 
 
