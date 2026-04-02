@@ -683,6 +683,7 @@ p4 <- p4 + coord_cartesian(ylim = c(-5.58, 5.24))
 # ==============================================================================
 # Q2 Clustering
 # ==============================================================================
+spending.cols <- c("Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen")
 
 # K-Means for k=2 through 5
 KMeans.results <- list()
@@ -1644,112 +1645,37 @@ Channel label.
 
 ### Cluster spending profiles {#apd:cluster-profiles}
 
-```{r q2-k-means-table-1, echo=FALSE, include=FALSE}
-# ---- K-Means cluster profiles (k=2 and k=3) ----
-km2 <- KMeans.results[[2]]
-km3 <- KMeans.results[[3]]
-
-data$km2_cluster <- km2$cluster
-data$km3_cluster <- km3$cluster
-
-# Median spending per cluster
-km3_profiles <- data %>%
-  group_by(km3_cluster) %>%
-  summarise(
-    n = n(),
-    across(all_of(spending.cols), median),
-    .groups = "drop"
-  )
-print(km3_profiles)
-
-# Channel cross-tab
-table(KMeans_3 = km3$cluster, Channel = data$Channel)
-
-# ---- Percentage views for both methods ----
-
-# K-Means k=3: % of each cluster's total spend per category
-km3_pct <- data %>%
-  group_by(km3_cluster) %>%
-  summarise(across(all_of(spending.cols), median), .groups = "drop") %>%
-  mutate(
-    total = Fresh + Milk + Grocery + Frozen + Detergents_Paper + Delicassen,
-    across(all_of(spending.cols), ~ round(. / total * 100, 1))
-  ) %>%
-  select(-total)
-print(km3_pct)
-
-# GMM k=5: same treatment
-gmm_pct <- data %>%
-  group_by(gmm_cluster) %>%
-  summarise(across(all_of(spending.cols), median), .groups = "drop") %>%
-  mutate(
-    total = Fresh + Milk + Grocery + Frozen + Detergents_Paper + Delicassen,
-    across(all_of(spending.cols), ~ round(. / total * 100, 1))
-  ) %>%
-  select(-total)
-print(gmm_pct)
-
-# K-Means (k=3) spending profiles (% of median basket)
-#   KM1 (n=147): Fresh 33%, Grocery 27%, Milk 20%  ← mixed basket, 56H/91R
-#   KM2 (n=212): Fresh 58%, Frozen 13%             ← HoReCa dominant (209H/3R)
-#   KM3 (n=81):  Grocery 45%, Milk 27%, Det 18%    ← Retail dominant (33H/48R)
-#
-# KM2 is a clean HoReCa cluster. KM3 is a clean Retail cluster.
-# KM1 is the interesting one - the "middle ground" that mixes both channels.
-# This is arguably the k=3 third segment: customers whose spending doesn't
-# fit neatly into either profile.
-#
-# GMM (k=5) spending profiles (% of median basket)
-#   GMM1 (n=51):  Grocery 44%, Det 22%, Milk 26%   ← heavy Retail (supermarkets)
-#   GMM2 (n=101): Grocery 33%, Fresh 23%, Milk 21% ← moderate Retail (diversified)
-#   GMM3 (n=155): Fresh 62%, Frozen 15%            ← high-volume HoReCa
-#   GMM4 (n=81):  Fresh 41%, Milk 22%, Grocery 22% ← balanced HoReCa
-#   GMM5 (n=52):  Grocery 42%, Fresh 26%           ← small/mixed (lowest spend)
-#
-# GMM splits Retail into concentrated (GMM1) vs diversified (GMM2)
-# GMM splits HoReCa into Fresh-dominated (GMM3) vs balanced (GMM4)
-# GMM5 is the low-spend boundary group - similar to KM1's "middle ground"
-```
-
 ```{r q2-tables-3-apd, echo=FALSE}
-# ---- Raw median spending table ----
-km3_raw_table <- data %>%
-  group_by(km3_cluster) %>%
-  summarise(
-    n = n(),
-    across(all_of(spending.cols), median),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Method = "K-Means",
-    Cluster = paste0("KM-", km3_cluster)
-  ) %>%
-  select(-km3_cluster)
+# Build from precomputed km3_medians and gmm_medians
+km3_raw_table <- km3_medians[, c("km3_cluster", spending.cols)]
+km3_raw_table$n <- sapply(km3_raw_table$km3_cluster, function(k) {
+  sum(data$km3_cluster == k)
+})
+km3_raw_table$Cluster <- paste0("KM-", km3_raw_table$km3_cluster)
+km3_raw_table$Label <- km3_names[as.character(km3_raw_table$km3_cluster)]
 
-gmm_raw_table <- data %>%
-  group_by(gmm_cluster) %>%
-  summarise(
-    n = n(),
-    across(all_of(spending.cols), median),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Method = "GMM",
-    Cluster = paste0("GMM-", gmm_cluster)
-  ) %>%
-  select(-gmm_cluster)
+gmm_raw_table <- gmm_medians[, c("gmm_cluster", spending.cols)]
+gmm_raw_table$n <- sapply(gmm_raw_table$gmm_cluster, function(g) {
+  sum(data$gmm_cluster == g)
+})
+gmm_raw_table$Cluster <- paste0("GMM-", gmm_raw_table$gmm_cluster)
+gmm_raw_table$Label <- gmm_names[as.character(gmm_raw_table$gmm_cluster)]
 
-combined_raw <- bind_rows(km3_raw_table, gmm_raw_table) %>%
-  select(Cluster, everything(), -Method) %>%
-  mutate(across(all_of(spending.cols), ~ format(round(.), big.mark = ",")))
+combined_raw <- rbind(
+  km3_raw_table[, c("Cluster", "Label", "n", spending.cols)],
+  gmm_raw_table[, c("Cluster", "Label", "n", spending.cols)]
+)
+for (col in spending.cols) {
+  combined_raw[[col]] <- format(round(combined_raw[[col]]), big.mark = ",")
+}
 
 kable(
   combined_raw,
-  format = "latex",
   booktabs = TRUE,
   escape = FALSE,
   col.names = c(
     "Cluster",
+    "Label",
     "$n$",
     "Fresh",
     "Milk",
@@ -1758,15 +1684,12 @@ kable(
     "Detergents\\_Paper",
     "Delicassen"
   ),
-  align = c("l", "r", rep("r", 6)),
+  align = c("l", "l", "r", rep("r", 6)),
   caption = "Cluster spending profiles (median annual spending, m.u.)",
   linesep = ""
 ) %>%
-  kable_styling(
-    latex_options = c("hold_position"),
-    font_size = 10
-  ) %>%
-  pack_rows("K-Means (k=3)", 1, 3, bold = TRUE, hline_before = FALSE) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
+  pack_rows("K-Means (k = 3)", 1, 3, bold = TRUE, hline_before = FALSE) %>%
   pack_rows(
     "Gaussian Mixture Model (k = 5)",
     4,
@@ -1776,24 +1699,28 @@ kable(
   )
 ```
 ```{r q2-tables-2-apd, echo=FALSE}
-# ---- Combined table for report ----
-km3_for_table <- km3_pct %>%
-  mutate(Method = "K-Means", Cluster = paste0("KM-", km3_cluster)) %>%
-  select(-km3_cluster)
+km3_pct_table <- km3_medians[, c("km3_cluster", paste0(spending.cols, "_pct"))]
+km3_pct_table$Cluster <- paste0("KM-", km3_pct_table$km3_cluster)
+km3_pct_table$Label <- km3_names[as.character(km3_pct_table$km3_cluster)]
+colnames(km3_pct_table)[2:7] <- spending.cols
 
-gmm_for_table <- gmm_pct %>%
-  mutate(Method = "GMM", Cluster = paste0("GMM-", gmm_cluster)) %>%
-  select(-gmm_cluster)
+gmm_pct_table <- gmm_medians[, c("gmm_cluster", paste0(spending.cols, "_pct"))]
+gmm_pct_table$Cluster <- paste0("GMM-", gmm_pct_table$gmm_cluster)
+gmm_pct_table$Label <- gmm_names[as.character(gmm_pct_table$gmm_cluster)]
+colnames(gmm_pct_table)[2:7] <- spending.cols
 
-combined <- bind_rows(km3_for_table, gmm_for_table) %>%
-  select(Cluster, everything(), -Method)
+combined_pct <- rbind(
+  km3_pct_table[, c("Cluster", "Label", spending.cols)],
+  gmm_pct_table[, c("Cluster", "Label", spending.cols)]
+)
 
 kable(
-  combined,
+  combined_pct,
   booktabs = TRUE,
   escape = FALSE,
   col.names = c(
     "Cluster",
+    "Label",
     "Fresh",
     "Milk",
     "Grocery",
@@ -1801,14 +1728,11 @@ kable(
     "Detergents\\_Paper",
     "Delicassen"
   ),
-  align = c("l", rep("r", 6)),
+  align = c("l", "l", rep("r", 6)),
   caption = "Cluster spending profiles (\\% of median basket)",
   linesep = ""
 ) %>%
-  kable_styling(
-    latex_options = c("hold_position"),
-    font_size = 10
-  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
   pack_rows("K-Means (k = 3)", 1, 3, bold = TRUE, hline_before = FALSE) %>%
   pack_rows(
     "Gaussian Mixture Model (k = 5)",
@@ -1818,72 +1742,69 @@ kable(
     hline_before = TRUE
   )
 ```
+
 ```{r q2-tables-4-apd, echo=FALSE}
-# each cluster's share of total category spend
-# i.e., what % goes to each segment we have now identified
+km3_rev_table <- km3_sums_all[, c(
+  "km3_cluster",
+  paste0(spending.cols, "_rev_pct")
+)]
+km3_rev_table$n <- sapply(km3_rev_table$km3_cluster, function(k) {
+  sum(data$km3_cluster == k)
+})
+km3_rev_table$Cluster <- paste0("KM-", km3_rev_table$km3_cluster)
+km3_rev_table$Label <- km3_names[as.character(km3_rev_table$km3_cluster)]
+colnames(km3_rev_table)[2:7] <- spending.cols
 
-km3_totals <- data %>%
-  group_by(km3_cluster) %>%
-  summarise(
-    n = n(),
-    across(all_of(spending.cols), sum),
-    .groups = "drop"
-  )
+gmm_rev_table <- gmm_sums_all[, c(
+  "gmm_cluster",
+  paste0(spending.cols, "_rev_pct")
+)]
+gmm_rev_table$n <- sapply(gmm_rev_table$gmm_cluster, function(g) {
+  sum(data$gmm_cluster == g)
+})
+gmm_rev_table$Cluster <- paste0("GMM-", gmm_rev_table$gmm_cluster)
+gmm_rev_table$Label <- gmm_names[as.character(gmm_rev_table$gmm_cluster)]
+colnames(gmm_rev_table)[2:7] <- spending.cols
 
-km3_col_pct <- km3_totals %>%
-  mutate(
-    across(
-      all_of(spending.cols),
-      ~ round(. / sum(.) * 100, 1)
-    ),
-    Cluster = paste0("KM-", km3_cluster)
-  ) %>%
-  select(Cluster, n, all_of(spending.cols))
-
-gmm_totals <- data %>%
-  group_by(gmm_cluster) %>%
-  summarise(
-    n = n(),
-    across(all_of(spending.cols), sum),
-    .groups = "drop"
-  )
-
-gmm_col_pct <- gmm_totals %>%
-  mutate(
-    across(
-      all_of(spending.cols),
-      ~ round(. / sum(.) * 100, 1)
-    ),
-    Cluster = paste0("GMM-", gmm_cluster)
-  ) %>%
-  select(Cluster, n, all_of(spending.cols))
-
-combined_col_pct <- bind_rows(km3_col_pct, gmm_col_pct)
+combined_rev <- rbind(
+  km3_rev_table[, c("Cluster", "Label", spending.cols)],
+  gmm_rev_table[, c("Cluster", "Label", spending.cols)]
+)
 
 kable(
-  combined_col_pct,
-  format    = "latex",
-  booktabs  = TRUE,
-  escape    = FALSE,
-  col.names = c("Cluster", "$n$", "Fresh", "Milk", "Grocery",
-                "Frozen", "Detergents\\_Paper", "Delicassen"),
-  align     = c("l", "r", rep("r", 6)),
-  caption   = "Revenue concentration: each cluster's share (\\%) of total
-               category spend across all 440 customers.",
-  linesep   = ""
+  combined_rev,
+  booktabs = TRUE,
+  escape = FALSE,
+  col.names = c(
+    "Cluster",
+    "Label",
+    "Fresh",
+    "Milk",
+    "Grocery",
+    "Frozen",
+    "Detergents\\_Paper",
+    "Delicassen"
+  ),
+  align = c("l", "l", rep("r", 6)),
+  caption = "Revenue concentration: each cluster's share (\\%) of total
+             category spend across all 440 customers.",
+  linesep = ""
 ) %>%
-  kable_styling(
-    latex_options = c("hold_position"),
-    font_size     = 10
-  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
   pack_rows("K-Means (k = 3)", 1, 3, bold = TRUE, hline_before = FALSE) %>%
-  pack_rows("Gaussian Mixture Model (k = 5)", 4, 8, bold = TRUE, hline_before = TRUE)
-
+  pack_rows(
+    "Gaussian Mixture Model (k = 5)",
+    4,
+    8,
+    bold = TRUE,
+    hline_before = TRUE
+  )
 ```
 
 
-Tables \@ref(tab:q2-tables-2-apd)–\@ref(tab:q2-tables-4-apd) present the
-cluster spending profiles from three perspectives. 
+Table \@ref(tab:q2-tables-3-apd), \@ref(tab:q2-tables-2-apd), and
+\@ref(tab:q2-tables-4-apd) present the cluster spending profiles from three
+perspectives.
 
 1. Table \@ref(tab:q2-tables-2-apd) shows the percentage composition of each
 cluster's median basket examining how each segment allocates its spending across
@@ -1927,7 +1848,7 @@ convenience-store or diversified retailer profile.
 
 ### Cluster assignments in PCA space {#apd:cluster-pca}
 
-```{r q2-plots-apd, echo=FALSE, fig.width=10, fig.height=8, fig.cap="Cluster assignments from K-Means (k=3, top) and GMM (k=5, bottom) projected onto the first two principal components, which together capture 71.3 percent of total variance. All clustering was performed in the full six-dimensional standardised log-spending space. Apparent overlap between clusters may reflect the loss of separating information in the remaining 28.7 percent of variance captured by PC3--PC6, rather than genuine ambiguity in cluster assignment."}
+```{r q2-plots-apd, echo=FALSE, fig.width=10, fig.height=12, fig.cap="Cluster assignments from K-Means (k=3, top) and GMM (k=5, bottom) projected onto the first two principal components, which together capture 71.3 percent of total variance. All clustering was performed in the full six-dimensional standardised log-spending space. Apparent overlap between clusters may reflect the loss of separating information in the remaining 28.7 percent of variance captured by PC3--PC6, rather than genuine ambiguity in cluster assignment."}
 
 pca_scores <- as.data.frame(pca_result$x[, 1:2])
 colnames(pca_scores) <- c("PC1", "PC2")
@@ -1937,25 +1858,50 @@ pc2_var <- summary(pca_result)$importance[2, 2] * 100
 pc1_lab <- sprintf("PC1 (%.1f%%)", pc1_var)
 pc2_lab <- sprintf("PC2 (%.1f%%)", pc2_var)
 
-pca_scores$KM3  <- factor(km3$cluster)
+pca_scores$KM3 <- factor(km3$cluster)
 pca_scores$GMM5 <- factor(data$gmm_cluster)
 
 p_km <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = KM3, shape = KM3)) +
+  geom_hline(yintercept = 0, colour = "grey80", linewidth = 0.3) +
+  geom_vline(xintercept = 0, colour = "grey80", linewidth = 0.3) +
   geom_point(alpha = 0.7, size = 1.5) +
   scale_colour_brewer(palette = "Set1") +
-  labs(title = "(a) K-Means (k = 3)", x = pc1_lab, y = pc2_lab,
-       colour = "Cluster", shape = "Cluster") +
+  labs(
+    title = "(a) K-Means (k = 3)",
+    x = pc1_lab,
+    y = pc2_lab,
+    colour = "Cluster",
+    shape = "Cluster"
+  ) +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(
+    legend.position = "right",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
 
-p_gmm_pca <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = GMM5, shape = GMM5)) +
-  geom_point(alpha = 0.9, size = 1.5) +
+p_gmm_pca <- ggplot(
+  pca_scores,
+  aes(x = PC1, y = PC2, colour = GMM5, shape = GMM5)
+) +
+  geom_hline(yintercept = 0, colour = "grey80", linewidth = 0.3) +
+  geom_vline(xintercept = 0, colour = "grey80", linewidth = 0.3) +
+  geom_point(alpha = 0.99, size = 1.5) +
   scale_colour_brewer(palette = "Set2") +
   scale_shape_manual(values = c(16, 17, 15, 18, 3)) +
-  labs(title = "(b) GMM (k = 5)", x = pc1_lab, y = pc2_lab,
-       colour = "Cluster", shape = "Cluster") +
+  labs(
+    title = "(b) GMM (k = 5)",
+    x = pc1_lab,
+    y = pc2_lab,
+    colour = "Cluster",
+    shape = "Cluster"
+  ) +
   theme_minimal() +
-  theme(legend.position = "right")
+  theme(
+    legend.position = "right",
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
 
 p_km / p_gmm_pca
 ```
