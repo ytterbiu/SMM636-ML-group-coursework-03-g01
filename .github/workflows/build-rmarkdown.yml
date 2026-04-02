@@ -40,6 +40,20 @@ jobs:
       #   with:
       #     extra-packages: rmarkdown
       
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev
+
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -52,7 +66,16 @@ jobs:
             any::zoo
             any::TTR
             any::svglite
-          cache-version: 1
+            any::callr
+            any::tidyverse
+            any::corrplot
+            any::factoextra
+            any::FactoMineR
+            any::gridExtra
+            any::scales
+            any::ggrepel
+            any::psych
+          cache-version: 2
           
       - name: Check supporting files exist
         run: |

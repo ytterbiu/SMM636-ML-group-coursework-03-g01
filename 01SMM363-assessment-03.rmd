@@ -1,7 +1,7 @@
 ---
 title:
   "Beyond the binary: Uncovering hidden customer segments in wholesale purchasing data"
-subtitle: "SMM068 (2025-26) Coursework 03 - Group 01"
+subtitle: "SMM636 (2025-26) Coursework 03 - Group 01"
 author:
   - "Abdulrahman Alolyan"
   - "Benjamin Evans"
@@ -1051,12 +1051,11 @@ agrees with K-Means on the dominant cluster structure, with disagreement
 confined to boundary observations between the smaller segments (Appendix
 \@ref(apd:wards-clust)). GMM relaxes K-Means' spherical cluster assumption: the
 BIC selected a `r gmm_spending$G`-component `r gmm_spending$modelName` model
-(Appendix, Figures \@ref(fig:silhouette-plot) & \@ref(fig:bic-plot)),
-splitting both channels into finer sub-segments. Cross-tabulation against
-Channel and Region (Appendix, Tables
-\@ref(tab:q2-tables-2-apd)–\@ref(tab:q2-tables-4-apd)) confirms that these
-sub-segments are spending-driven rather than geographic, with Region distributed
-roughly proportionally within each cluster.
+(Appendix, Figure \@ref(fig:bic-plot)), splitting both channels into finer
+sub-segments. Cross-tabulation against Channel and Region (Appendix, Tables
+\@ref(tab:km3-channel-crosstab) & \@ref(tab:gmm-region-crosstab)) confirms that
+these sub-segments are spending-driven rather than geographic, with Region
+distributed roughly proportionally within each cluster.
 
 Figure \@ref(fig:q2-revenue-triptych) presents the commercial impact of each
 segmentation. Under the existing binary Channel label, HoReCa customers account
@@ -1080,6 +1079,30 @@ controlled trial of differentiated service strategies across segments.
 
 
 # Repeating \@ref(qone) & \@ref(qtwo) using LLMs {#qthr}
+
+*Task:
+- Compare the output from the LLM with your own solution
+- Provide a critical evaluation of the similarities and differences between the
+two, and comment on the reliablity and usefulness of LLM in this context.*
+
+
+Two LLMs were evaluated: (LLM1) and (LLM2). To ensure comparability, identical
+prompts were used for both models and neither was given the raw `csv` data file.
+Instead, the dataset was described in the first prompt and the LLMs were asked
+to produce R code for independent execution. This design choice was deliberate.
+By withholding the data, the procedure replicated a commercial setting in which
+an organisation may not wish to upload private, potentially valuable data to an
+LLM provider. This also ensured that neither model could adapt its
+recommendations to the observed distributions, testing whether each model's
+default methodological choices were appropriate for this dataset. Approximately
+one hour was spent per model across six prompts. The full prompts, responses
+received, and figures produced by each LLM's generated code are provided in
+Appendix \@ref(apd-llm-information). A summary comparison and critical evaluation
+follows.
+
+
+
+T
 
 - Using same prompts for 2 LLMs for consistency / standardiseation.
 - 'to ensure compatibility identical prompts were used for both models' 
@@ -1106,20 +1129,19 @@ sym_legend <- paste0(
 
 rows <- tribble(
   ~group,            ~label,                                          ~ours, ~chatgpt, ~claude,
-  "Preprocessing",   "Excluded Channel \\& Region",                   "Y",   "?",      "?",
-  "Preprocessing",   "Identified skewness in spending variables",      "Y",   "?",      "?",
-  "Preprocessing",   "Applied log transform",                         "Y",   "?",      "?",
-  "Preprocessing",   "TBC",  "Y",   "?",      "?",
-  "PCA",             "Scree plot / variance explained",                "Y",   "?",      "?",
-  "PCA",             "Interpreted PC1 as channel axis",                "Y",   "?",      "?",
-  "PCA",             "TBC",         "Y",   "?",      "?",
-  "Clustering",      "TBC",       "Y",   "?",      "?",
-  "Clustering",      "TBC",    "Y",   "?",      "?",
-  "Clustering",      "TBC",              "Y",   "?",      "?",
-  "Clustering",      "TBC",       "Y",   "?",      "?",
-  "Interpretation",  "Commercial framing of segments",                 "Y",   "?",      "?",
-  "Interpretation",  "Acknowledged limitations",                       "Y",   "?",      "?",
-  "Interpretation",  "Suggested alternative methods",                  "Y",   "?",      "?"
+  "Preprocessing",   "Excluded Channel \\& Region from PCA/clustering", "Y",  "?",      "?",
+  "Preprocessing",   "Identified skewness / recommended log transform",  "Y",  "?",      "?",
+  "Preprocessing",   "Standardised variables before PCA",               "Y",  "?",      "?",
+  "PCA",             "Produced interpretable scree plot / variance",     "Y",  "?",      "?",
+  "PCA",             "Interpreted PC1 as channel axis",                  "Y",  "?",      "?",
+  "PCA",             "Validated PCA against Channel label",              "Y",  "?",      "?",
+  "Clustering",      "Justified choice of clustering method",            "Y",  "?",      "?",
+  "Clustering",      "Used formal $k$ selection (silhouette / BIC)",     "Y",  "?",      "?",
+  "Clustering",      "Identified structure beyond $k{=}2$",              "Y",  "?",      "?",
+  "Clustering",      "Suggested robustness check (alternative method)",  "Y",  "?",      "?",
+  "Interpretation",  "Commercial framing of segments",                   "Y",  "?",      "?",
+  "Interpretation",  "Acknowledged limitations of the analysis",         "Y",  "?",      "?",
+  "Interpretation",  "Suggested further methods or extensions",          "Y",  "?",      "?"
 )
 
 # map codes to symbols
@@ -1181,7 +1203,6 @@ caption_text <- paste0(
 
 tbl <- kable(
   kable_data,
-  format    = "latex",
   booktabs  = TRUE,
   escape    = FALSE,
   align     = c("l", "c", "c", "c"),
@@ -1224,6 +1245,7 @@ tbl
 
 
 ```{=latex}
+\clearpage
 \newpage
 ```
 
@@ -1357,7 +1379,7 @@ bind_rows(raw_df, log_df) %>%
   facet_wrap(~Category, scales = "free_y") +
   labs(
     title = "Shape Comparison: Raw vs Log-transformed Spending",
-    x = "Normalised Spend (0–1 scaled within each group)",
+    x = "Normalised Spend (0-1 scaled within each group)",
     y = "Density"
   ) +
   theme_minimal() +
@@ -1365,7 +1387,7 @@ bind_rows(raw_df, log_df) %>%
 ```
 
 This skewness is examined more closely in Figure \@ref(fig:histograms-overlay),
-which overlays raw and log-transformed distributiosn for each category. The raw
+which overlays raw and log-transformed distributions for each category. The raw
 spending figures exhibit a strong rightward skew across all six product
 categories, indicating that while most customers spend relatively small amounts,
 a long tail of high-spending customers dominates the scale. Applying a log
@@ -1946,14 +1968,6 @@ among boundary customers between the two smaller segments, reflecting the
 different optimisation strategies. K-Means minimises within-cluster sum of
 squares globally, while Ward's method does so greedily through successive
 agglomeration. 
-<!-- This partial agreement supports the robustness of the dominant -->
-<!-- segmentation structure while highlighting that finer sub-group boundaries are -->
-<!-- method-dependent. -->
-
-<!-- Ward's hierarchical clustering (k=3) agrees with K-Means on  -->
-<!-- `r max(sum(KMeans.results[[3]]$cluster == hc_clusters), sum(KMeans.results[[3]]$cluster == (4 - hc_clusters)))`  -->
-<!-- of 440 assignments (Appendix, Table @ref(tab:ward-crosstab)), providing further evidence that the three-segment structure is robust across algorithmic choices. -->
-
 
 
 ```{=latex}
@@ -1963,8 +1977,54 @@ agglomeration.
 
 # Prompts and LLM outputs {#apd-llm-information}
 
-In this appendix, we opted to use a consistent visual format to distinguish
-between prompts sent to the LLM, its responses, and our own commentary. 
+```{r llm-runner-setup, include=FALSE}
+library(callr)
+
+llm_plot_dir <- "LLM-output/figures"
+dir.create(llm_plot_dir, showWarnings = FALSE, recursive = TRUE)
+
+run_llm_script <- function(script_path, plot_prefix = "llm") {
+  plot_dir <- file.path(llm_plot_dir, plot_prefix)
+  dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  old_plots <- list.files(plot_dir, pattern = "\\.png$", full.names = TRUE)
+  if (length(old_plots) > 0) file.remove(old_plots)
+  
+  result <- callr::r(function(sp, pd) {
+    setwd(dirname(sp))
+    png(file.path(pd, "plot_%03d.png"), width = 900, height = 600, res = 150)
+    
+    output <- capture.output({
+      tryCatch(
+        source(sp, print.eval = TRUE),
+        error = function(e) cat("\n== SOURCE ERROR ==\n", e$message, "\n")
+      )
+    }, type = "output")
+    
+    dev.off()
+    list(output = output)
+  }, args = list(
+    sp = normalizePath(script_path),
+    pd = normalizePath(plot_dir)
+  ), show = FALSE)
+  
+  # Print text output inside a fenced code block so it formats properly
+  if (length(result$output) > 0) {
+    cat("\n```\n")
+    cat(result$output, sep = "\n")
+    cat("\n```\n\n")
+  }
+  
+  # Embed plots using raw markdown syntax (works with results='asis')
+  plots <- sort(list.files(plot_dir, pattern = "\\.png$", full.names = TRUE))
+  for (p in plots) {
+    cat(paste0("![](", p, ")\n\n"))
+  }
+}
+```
+
+A consistent visual format is used to distinguish between prompts sent to the
+LLM, its responses, and our commentary.
 
 ::: {.promptbox}
 
@@ -1985,66 +2045,151 @@ summary(mtcars$mpg)
 
 ::: {.insightbox}
 
-**Insight and critical interpretation** - highlighted observations or key findings drawn from the output.
+**Our group insight and critical evaluation** - observations or key findings drawn from the output (i.e., what we found).
 
 :::
 
 ::: {.alertbox}
 
-**Alert** - flags potential concerns, limitations, or caveats with the
-generated output.
+**Caution: points requiring verification** - potential concerns, limitations, or caveats with the generated output (i.e., what we question).
 
 :::
 
+The R code generated by each LLM was executed programmatically within this
+document using a sandboxed runtime environment. Each script was run in an
+isolated R subprocess via the `callr` package, ensuring that no libraries,
+variables, or side effects from one script could contaminate the main document
+environment or subsequent scripts. Console output and diagnostic messages were
+captured and reproduced verbatim, while graphical output was intercepted via a
+PNG device and embedded automatically. Any runtime errors were caught and
+reported inline rather than halting the document compilation. 
 
-## \@ref(qone) PCA LLM dialogue
+This approach was used to ensure that the displayed output faithfully reflected
+what each LLM-generated script produced when executed from a clean R session.
 
-_Example format below (literally asked base ChatGPT to come up with it's own
-prompt and then answer it - change when we do for real)._
+
+## Claude (Sonnet 4.6) dialogue
+
+```{r clean-env-for-llm-01, include=FALSE} 
+keep_vars <- c("word_count", "keep_vars")
+# rm(list = setdiff(ls(), keep_vars))
+```
+
+The full chat history is available via: [link]
 
 <!-- prettier-ignore -->
 ::: promptbox 
-**LLM Prompt:** Act as an expert data scientist. I have the
-Wholesale Customers dataset from Kaggle. Please write an R script to perform
-Principal Component Analysis (PCA) on this dataset. Provide the code, generate
-the necessary plots, and summarise the key findings. 
+
+Role : You are a data scientist working in a company that does wholesale
+distribution to clients located in Portugal.
+
+\vspace{12pt}
+
+task : Your company is looking to implement a Data-driven customer segmentation
+to inform inventory planning, pricing strategy, and sales team deployment.
+
+\vspace{12pt}
+
+I have a dataset called Wholesale_customers_data.csv located at
+`.\Wholesale_customers_data.csv`. It contains 440 rows and 8 columns: Channel
+(1=Hotel/Restaurant/Café, 2=Retail), Region (1=Lisbon, 2=Oporto, 3=Other), and
+six continuous spending variables (Fresh, Milk, Grocery, Frozen,
+Detergents_Paper, Delicassen) representing annual spending in monetary units.
+Please write R code to perform PCA on this dataset. Include any preprocessing
+you think is necessary.
+
 :::
 
 <!-- prettier-ignore -->
 :::: {.responsebox}
 
-Here is the LLM's generated code:
-```r
-# =========================
-# 0. Setup
-# =========================
-rm(list = ls())
-packages <- c("tidyverse", "factoextra", "corrplot")
-installed <- packages %in% rownames(installed.packages())
-if(any(!installed)) install.packages(packages[!installed])
-```
+### Response 1
 
-Which handles string formatting cleanly.
+`> Check for relevant skills`
+
+No file uploaded, but I have a clear description of the dataset. Let me write
+comprehensive R code for PCA on this wholesale customers dataset.
+
+`> Created a file, read a file`
+
+Here's a walkthrough of every decision made in the script: 
+
+**Pre-processing Rationale**
+
+**Why separate Channel & Region from the PCA?** They are categorical identifiers,
+not spending measurements. Mixing measurement scales would corrupt the
+covariance structure. They are kept as labels to colour the biplots afterwards,
+which is far more analytically useful.
+
+**Why log1p-transform before PCA?** Wholesale spend data is almost always severely
+right-skewed (a few very large clients dominate). PCA is sensitive to scale and
+variance, so without this step a single high-spend outlier can hijack the first
+principal component. log1p (log(x+1)) compresses the long tail and handles any
+zero values gracefully.
+
+**Why scale. = TRUE inside prcomp?** Even after log-transformation the six variables
+have different magnitudes (e.g., Fresh spending is typically much larger than
+Delicassen). Standardising to unit variance ensures each variable contributes
+equally to the decomposition.
+
+**Why run KMO & Bartlett's tests?** These confirm that the correlation structure is
+strong enough to make PCA meaningful. Bartlett's test (H₀: correlation matrix =
+identity) should be rejected (p < 0.05), and KMO > 0.6 indicates adequate
+sampling adequacy.
+
+**What the Script Produces**
+
+- Section 2: Missing value check, outlier boxplots, skewness table...
+- Section 3: `prcomp` PCA object, full rotation matrix & summary
+- Section 4: Eigenvalue table, Scree plot with Kaiser line...
+- Section 5: Loading heatmap for retained PCs, cos² contribution plot
+- Section 6: Biplots coloured by Channel and Region separately...
+- Section 7: PC scores merged back → exported as `wholesale_pca_scores.csv`
+
+**What to Expect Analytically**
+
+Based on known patterns in this dataset:
+
+- PC1 (~44% variance) — a general spending scale axis; high scores = large/high-value clients
+- PC2 (~22% variance) — a channel contrast axis; Fresh loads negatively (HoReCa), Grocery/Detergents_Paper positively (Retail)
+- PC3 (~12% variance) — a niche category axis differentiating Frozen/Delicassen buyers
+
+Together, ~2–3 PCs typically explain 75–85% of variance, making the PC scores an
+excellent lower-dimensional input for your subsequent K-Means or Hierarchical
+clustering step.
 
 ::::
 
+The **R** code returned was in a separate file, not inline. It is shown below:
+
+```{r llm-01-prompt-01-display, code=suppressWarnings(readLines("LLM-output/LLM-code-01-prompt-01.R")), eval=FALSE, echo=TRUE, attr.source='.numberLines'}
+```
+```{r llm-01-prompt-01-run, echo=FALSE, results='asis', error=TRUE}
+run_llm_script("LLM-output/LLM-code-01-prompt-01.R", "llm01_prompt01")
+```
+
+
 <!-- prettier-ignore -->
 ::: insightbox 
-**Our interpretation:** The PCA biplot shows that Fresh and Milk
-spending are nearly orthogonal, suggesting they are independent purchasing
-behaviors. 
+... TBI (lots of code)
 :::
 
 <!-- prettier-ignore -->
 ::: alertbox 
-**Our concern:** PCA assumes linear relationships between
-variables. If the underlying structure is non-linear, consider using t-SNE or
-UMAP instead. Also note that the results are sensitive to outliers - always
-check for extreme values before interpreting the components. 
+This is something we would note...
 :::
 
 
-## \@ref(qtwo) Clustering LLM dialogue
+```{=latex}
+\clearpage
+\newpage
+```
+
+## (LLM2) dialogue
+
+```{r clean-env-for-llm-02, include=FALSE} 
+# rm(list = setdiff(ls(), keep_vars))
+```
 
 ```{=latex}
 \clearpage
@@ -2053,13 +2198,6 @@ check for extreme values before interpreting the components.
 
 
 # Reproducibility, accessibility & declarations
-
-<!-- BE note: taken out as we are submitting R file separately -->
-<!-- Use: `knitr::purl("cs1-group07.rmd", documentation = 0)` to generate r file -->
-<!-- Use: `tools::showNonASCIIfile("cs1-group07.rmd")` to debug -->
-<!-- ## R Code Documentation -->
-<!-- ```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
-``` -->
 
 ## Reproducibility & accessibility
 
@@ -2152,6 +2290,14 @@ beginning of this document, but is reproduced below for transparency:
 <!-- While GenAI was treated as a collaborator, the final analysis, statistical -->
 <!-- interpretation, and the written content of this report were generated and -->
 <!-- verified by the (human) group members. -->
+
+
+<!-- BE note: taken out as we are submitting R file separately -->
+<!-- Use: `knitr::purl("01SMM363-assessment-03.rmd", documentation = 0)` to generate r file -->
+<!-- Use: `tools::showNonASCIIfile("cs1-group07.rmd")` to debug -->
+<!-- ## R Code Documentation -->
+<!-- ```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+``` -->
 
 ---
 
