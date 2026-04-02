@@ -1,0 +1,1440 @@
+---
+title:
+  "Beyond the binary: Uncovering a hidden customer segment in wholesale purchasing data"
+subtitle: "SMM068 (2025-26) Coursework 03 - Group 01"
+author:
+  - "Abdulrahman Alolyan"
+  - "Benjamin Evans"
+  - "Basmah Khan"
+  - "Ardi Wira Sudarmo"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+papersize: a4
+fontsize: 12pt
+output:
+  bookdown::html_document2:
+    self_contained: true
+    css: style.css
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    code_folding: hide
+    theme: paper
+    highlight: pygments
+    df_print: paged
+    pandoc_args: ["--lua-filter=custom-boxes.lua"]
+  # runtime: shiny
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+    includes:
+      in_header: preamble.tex
+    pandoc_args: ["--lua-filter=custom-boxes.lua"]
+    number_sections: true
+    toc: true
+    # citation_package: natbib
+    keep_tex: true
+bibliography: references.bib
+csl: ieee.csl
+---
+
+```{=latex}
+\newpage
+```
+
+```{=html}
+<h1>Information</h1>
+
+This R Markdown document was created as part of a group assignment for SMM636 at Bayes Business School, City St George's, University of London in Term 2 2025-26.
+
+```
+
+```{r asthetic-header, include=FALSE, echo=FALSE}
+# ============================================================================ #
+# Key Information ====
+# SMM636 Machine Learning
+# Group Coursework 2025-26
+# Group:        Group 01
+# Authors (in alphabetical order):
+#   - Abdulrahman Alolyan
+#   - Benjamin Evans
+#   - Basmah Khan
+#   - Ardi Wira Sudarmo
+# Professor:    Dr. Rui Zhu
+# Institution:  Bayes Business School - City St George's, University of London
+# Date:         03 Apr 2026
+#
+# Description:  Term 2 group project for SMM636 Machine Learning
+#               (25% of coursework grade - 25% of module grade). The R code
+#               below has been exported directly from an R Markdown (.rmd) file.
+#               Hence the knitr settings.
+#
+# Dependencies:
+#   - tidyverse: loads dplyr, tidyr, ggplot2, purrr (& others)
+#   - TBI
+#
+# Acknowledgements
+#   - TBI
+# ============================================================================ #
+```
+
+```{r setup-knitr, include=FALSE, echo=FALSE}
+# Setup & configuration ====
+#----------------------- Initial setup (knitr settings) -----------------------#
+dir.create("fig", showWarnings = FALSE)
+
+# Defaults common to all outputs
+knitr::opts_chunk$set(
+  echo     = TRUE,
+  message  = FALSE,
+  warning  = FALSE,
+  fig.align = "center",
+  out.width = "100%",
+  fig.path  = "fig/",
+  dpi       = 300
+)
+
+# Output-specific settings
+if (knitr::is_latex_output()) {
+  knitr::opts_chunk$set(
+    fig.width = 6,
+    fig.height = 4,
+    dev = "pdf",
+    fig.pos = "!ht",
+    out.extra = ""
+  )
+} else {
+  knitr::opts_chunk$set(
+    fig.width = 6,
+    fig.height = 4,
+    dev = "svglite"  # or "png"
+  )
+}
+```
+
+```{r setup-qol, include=FALSE, echo=FALSE}
+#----------------------------- Clean environment ------------------------------#
+rm(list = ls()) # Remove all objects
+graphics.off() # Close all graphical devices
+cat("\014") # Clean console
+```
+
+```{r load-dependencies, include=FALSE, echo=FALSE}
+#------------------- Load dependencies / external libraries -------------------#
+# --- Core Data Manipulation ---
+library(tidyverse)  # loads dplyr, tidyr, ggplot2, purrr, etc.
+
+# --- Visualization & Plot Arrangement ---
+library(patchwork)  # combining multiple ggplot objects
+library(gridExtra)  # arranging base/grid plots
+library(ggpubr)     # publication-ready plot themes/utilities
+library(corrplot)   # correlation heatmaps
+library(GGally)     # pairs plots
+library(factoextra) # PCA & clustering visualizations
+
+# --- Analytics & Modeling ---
+library(NbClust)    # optimal-k diagnostics
+
+# NOTE: The packages below are deliberately NOT loaded into the global 
+# environment to prevent function masking conflicts (e.g., MASS::select 
+# breaking dplyr::select). Call their functions directly using namespaces:
+# cluster::daisy(), MASS::isoMDS()
+# library(MASS)     
+# library(cluster)
+
+library(mclust)
+
+# --- Reporting & Tables ---
+library(kableExtra) # for formatting output tables
+```
+
+```{r custom-functions, include=FALSE, echo=FALSE}
+#---------------------------- Custom QOL functions ----------------------------#
+#####################################
+# function: banner comments (used to to section up code)
+# Usage: banner_comment("Element 1: data cleaning") -> then ctrl + v (or cmd+v)
+#####################################
+banner_comment <- function(text, width = 80, border = "#", fill = "-") {
+  txt <- paste0(" ", text, " ")
+  inner_width <- width - 2 * nchar(border)
+  banner_string <- ""
+
+  if (inner_width <= nchar(txt)) {
+    banner_string <- paste0(border, txt, border)
+  } else {
+    pad_total <- inner_width - nchar(txt)
+    pad_left <- pad_total %/% 2
+    pad_right <- pad_total - pad_left
+
+    banner_string <- paste0(
+      border,
+      strrep(fill, pad_left),
+      txt,
+      strrep(fill, pad_right),
+      border
+    )
+  }
+
+  cat(banner_string, "\n")
+  # copy banner to allow direct pasting (requires clipr)
+  clipr::write_clip(banner_string)
+  # avoid [1] when printing if want to manually copy
+  invisible(banner_string)
+}
+#####################################
+# function: format p-values for text
+# Usage (in-line): `r format_p_vals(ad_test_result$p.value)`
+# Usage (console): format_p_vals(ad_test_result$p.value)
+#####################################
+format_p_vals <- function(p) {
+  if (length(p) != 1L || is.na(p)) {
+    stop("Error! p must be a single non-missing value")
+  }
+  if (p > 1) {
+    stop("Error! Value greater than 1")
+  }
+  if (p < 0) {
+    stop("Error! Value less than 0")
+  }
+
+  if (p >= 0.01) {
+    paste0("= ", formatC(p, format = "f", digits = 2))
+  } else if (p >= 0.001) {
+    paste0("= ", formatC(p, format = "f", digits = 3))
+  } else {
+    "< 0.001"
+  }
+}
+#####################################
+# function: format confidence intervals for tables & text
+# Usage (in-line): `r format_interval(el2_ci_normal_95[1], el2_ci_normal_95[2])`
+# Usage (console): format_interval(el2_ci_normal_95[1], el2_ci_normal_95[2])
+#####################################
+format_interval <- function(lower, upper, digits = 3, small_interval = 5L) {
+  paste0(
+    "[",
+    formatC(
+      lower,
+      format = "f",
+      digits = digits,
+      small.interval = small_interval,
+      small.mark = " "
+    ),
+    ", ",
+    formatC(
+      upper,
+      format = "f",
+      digits = digits,
+      small.interval = small_interval,
+      small.mark = " "
+    ),
+    "]"
+  )
+}
+#####################################
+# function: format truncated ellipses
+# Usage (in-line): `r tbi`
+# Usage (console): tbi
+#####################################
+fmt_trunc_ellip <- function(
+  x,
+  digits = 7,
+  ellip = "...",
+  tol = 1e-12,
+  trim_zeros_if_exact = TRUE
+) {
+  out <- rep(NA_character_, length(x))
+  ok <- is.finite(x)
+  scale <- 10^digits
+  xt <- trunc(x[ok] * scale) / scale
+  s <- formatC(xt, format = "f", digits = digits)
+  add <- abs(x[ok] - xt) > tol * pmax(1, abs(x[ok]))
+  if (trim_zeros_if_exact) {
+    s_trim <- sub("0+$", "", s) # drop trailing zeros
+    s_trim <- sub("\\.$", "", s_trim) # drop trailing decimal point
+  } else {
+    s_trim <- s
+  }
+  out[ok] <- ifelse(add, paste0(s, ellip), s_trim)
+  out[is.na(x)] <- NA_character_
+  out
+}
+#####################################
+# function: function to format 6dp numbers with a space after the 3rd decimal
+# digit
+# Usage (in-line): TBI
+# Usage (console): TBI
+#####################################
+format_spaced_6dp <- function(x) {
+  # Format to 6 decimal places
+  s <- sprintf("%.6f", x)
+  # Insert space between the first 3 and last 3 decimal digits
+  sub("(\\.[0-9]{3})([0-9]{3})$", "\\1 \\2", s)
+}
+#####################################
+# function: format variable names in green in latex (& normal code in html)
+# Usage (in-line): TBI `r format_var_name("dvisit")`
+#####################################
+format_var_name <- function(x) {
+  if (knitr::is_latex_output()) {
+    # replace all "_" with "\_" in va name
+    paste0("\\greentt{", gsub("_", "\\\\_", x), "}")
+  } else {
+    # change to paste0("<code style='color:green'>", x, "</code>") for green
+    # paste0("`", x, "`")
+    paste0("<code style='color:green'>", x, "</code>")
+  }
+}
+```
+
+```{r word-count, include=FALSE}
+rmd_lines <- readLines("01SMM363-assessment-03.rmd", warn = FALSE)
+
+# ---- Remove YAML front matter ----
+yaml_bounds <- which(rmd_lines == "---")
+if (length(yaml_bounds) >= 2) {
+  rmd_lines <- rmd_lines[-(yaml_bounds[1]:yaml_bounds[2])]
+}
+
+# ---- Remove code chunks ----
+in_chunk <- FALSE
+keep <- rep(TRUE, length(rmd_lines))
+for (i in seq_along(rmd_lines)) {
+  if (grepl("^```\\{", rmd_lines[i])) {
+    in_chunk <- TRUE
+    keep[i] <- FALSE
+    next
+  }
+  if (in_chunk && grepl("^```\\s*$", rmd_lines[i])) {
+    in_chunk <- FALSE
+    keep[i] <- FALSE
+    next
+  }
+  if (in_chunk) keep[i] <- FALSE
+}
+rmd_lines <- rmd_lines[keep]
+
+# ---- Identify which lines fall inside counted sections ----
+# Sections to include (level-1 headers only)
+counted_ids <- c("intro", "qone", "qtwo", "qthr")
+in_counted_section <- FALSE
+include <- rep(FALSE, length(rmd_lines))
+
+for (i in seq_along(rmd_lines)) {
+  line <- rmd_lines[i]
+  # Detect any level-1 header (# but not ##)
+  if (grepl("^#\\s+[^#]", line)) {
+    # Check if this header belongs to a counted section
+    in_counted_section <- any(sapply(counted_ids, function(id) {
+      # [^}]* allows any characters (like spaces, hyphens, classes) before the 
+      # closing }
+      # this is required to count the words in the unnumbered introduction
+      grepl(paste0("\\{\\s*#", id, "[^}]*\\}"), line)
+    }))
+    next  # skip the header line itself
+  }
+  if (in_counted_section) include[i] <- TRUE
+}
+
+counted_lines <- rmd_lines[include]
+
+# ---- Remove sub-headers (##, ###, etc.) ----
+counted_lines <- counted_lines[!grepl("^#{2,}", counted_lines)]
+
+# ---- Remove table lines (markdown pipes) ----
+counted_lines <- counted_lines[!grepl("^\\|", counted_lines)]
+
+# ---- Remove figure captions: ![caption](...) ----
+counted_lines <- counted_lines[!grepl("^!\\[", counted_lines)]
+
+# ---- Remove fenced div markers (::: name) ----
+counted_lines <- counted_lines[!grepl("^:::", counted_lines)]
+
+# ---- Remove LaTeX commands ----
+counted_lines <- counted_lines[!grepl("^\\\\", counted_lines)]
+
+# ---- Remove HTML comments ----
+counted_lines <- counted_lines[!grepl("^<!--", counted_lines)]
+
+# ---- Remove inline R references like \@ref() ----
+counted_lines <- gsub("\\\\@ref\\([^)]*\\)", "", counted_lines)
+
+# ---- Count ----
+word_count <- sum(stringi::stri_count_words(counted_lines), na.rm = TRUE)
+
+message("Word count (sections qone, qtwo, qthr, body text only): ", word_count)
+
+# Write for LaTeX preamble
+writeLines(
+  paste0("\\newcommand{\\wordcount}{",
+         formatC(word_count, big.mark = ","), "}"),
+  "wordcount.tex"
+)
+```
+
+```{=latex}
+\newpage
+\pagenumbering{arabic}
+```
+
+# Introduction {#intro -}
+
+This report analyses annual spending data from 440 clients of a Portuguese
+wholesale distributor [@Cardoso2013; @Abreu2011], comprising 298
+Hotel/Restaurant/Café (HoReCa) and 142 Retail customers across six product
+categories: `r format_var_name("Fresh")`,
+`r format_var_name("Milk")`, `r format_var_name("Grocery")`,
+`r format_var_name("Frozen")`, `r format_var_name("Detergents_Paper")`, and
+`r format_var_name("Delicassen")`. Data-driven
+customer segmentation informs inventory planning, pricing strategy, and
+sales team deployment, yet the existing classification is a simple binary label
+(`r format_var_name("Channel")`).
+This analysis uses Principal Component Analysis (PCA) and clustering to
+investigate whether the existing two-category classification adequately captures
+the structure of customer spending, or whether the data supports a more nuanced
+segmentation.
+
+```{r load-data, echo=FALSE, include=FALSE}
+set.seed(1234)
+
+data <- read.csv("data/Wholesale_customers_data.csv")
+str(data)
+summary(data)
+
+# just get the $ amounts spent
+spending <- data[, c(
+  "Fresh",
+  "Milk",
+  "Grocery",
+  "Frozen",
+  "Detergents_Paper",
+  "Delicassen"
+)]
+
+spending_log <- log1p(spending)
+
+rescale01 <- function(x) (x - min(x)) / (max(x) - min(x))
+
+raw_df <- spending %>%
+  pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
+  mutate(Transform = "Raw")
+
+log_df <- spending_log %>%
+  pivot_longer(everything(), names_to = "Category", values_to = "Spend") %>%
+  mutate(Transform = "Log-transformed")
+
+# add data to import into in-line text
+# standardise log-transformed data
+scaled_data <- scale(spending_log)
+
+# PCA
+pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
+
+# Skewness (raw)
+skew_vals <- apply(spending, 2, e1071::skewness)
+min_skew  <- min(skew_vals)
+```
+
+```{r data-table, echo=knitr::is_html_output(), eval=knitr::is_html_output()}
+DT::datatable(
+  data,
+  filter   = "top",
+  options  = list(pageLength = 15, scrollX = TRUE),
+  caption  = "Wholesale customers"
+)
+```
+
+# Principle component analysis (PCA) {#qone}
+
+<!-- _Apply PCA to the dataset and summarise and interpret key your findings_ -->
+
+A log-transformation was applied to normalise the distribution and
+address the right-skewness observed across all six spending variables 
+(skewness > `r formatC(min_skew, format = "f", digits = 1)`
+for all - see Appendix, Figures \@ref(fig:histograms-overlay) &
+\@ref(fig:corrplots-side-by-side)). The variables were then standardised to
+ensure equal contribution to the PCA, preventing categories with naturally
+larger absolute expenditures from dominating the model.
+
+The first two principal components capture 71.3% of the total variance (PC1:
+44.1%; PC2: 27.2%; Figure \@ref(fig:pca-grid)(a)). The component loadings in
+Figure \@ref(fig:pca-grid)(b) reveal distinct commercial purchasing patterns.
+PC1 acts as the primary "channel axis," driven by strong positive loadings for
+`r format_var_name("Grocery")` (0.571),
+`r format_var_name("Detergents_Paper")` (0.551), and 
+`r format_var_name("Milk")` (0.542), 
+contrasted with near-zero or negative loadings for 
+`r format_var_name("Fresh")` and `r format_var_name("Frozen")`. 
+PC2 serves as a "perishable volume axis," characterised by high positive
+loadings for `r format_var_name("Fresh")` (0.590), `r format_var_name("Frozen")`
+(0.590), and `r format_var_name("Delicassen")` (0.530), capturing the scale of
+fresh food purchasing independent of business type.
+
+Figure \@ref(fig:pca-grid)(d) confirms this visually, showing clear
+separation between HoReCa and Retail customers along PC1. PCA is restricted to
+continuous inputs, necessitating the exclusion of `r format_var_name("Channel")`
+and `r format_var_name("Region")`. A Gower-distance MDS analysis incorporating
+these variables (Appendix, \@ref(apd:suppl-mds)) confirms that the categorical
+labels dominate the distance metric, validating the decision to analyse spending
+variables independently.
+
+
+```{r pca-fit, echo=FALSE, include=FALSE}
+# ==============================================================================
+# Q1 PCA
+# ==============================================================================
+
+pca_result <- prcomp(spending_log, center = TRUE, scale. = TRUE)
+summary(pca_result)
+
+cumvar <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
+cat("Cumulative variance explained:\n")
+print(round(cumvar, 3))
+
+loadings <- pca_result$rotation[, 1:3]
+print(round(loadings, 3))
+```
+
+```{r pca-scree, echo=FALSE, include=FALSE, fig.width=7, fig.height=5}
+fviz_eig(
+  pca_result,
+  addlabels = TRUE,
+  ylim = c(0, 60),
+  main = "Scree Plot - Variance Explained by Each Principle Component (PC)"
+)
+```
+
+```{r pca-biplot, echo=FALSE, include=FALSE, fig.width=8, fig.height=6}
+fviz_pca_biplot(
+  pca_result,
+  label   = "var",
+  col.var = "firebrick",
+  col.ind = alpha("steelblue", 0.3),
+  repel   = TRUE,
+  title   = "PCA Biplot (log-transformed, standardised data)"
+)
+```
+
+```{r pca-contrib-pc, echo=FALSE, include=FALSE, fig.width=7, fig.height=4}
+# Opted to hide these for now 
+# (don't think we have space and they don't add too much)
+# Even including in appendix is limited - easier to include table
+fviz_contrib(
+  pca_result,
+  choice = "var",
+  axes   = 1,
+  title  = "Variable Contributions to PC1"
+)
+
+fviz_contrib(
+  pca_result,
+  choice = "var",
+  axes   = 2,
+  title  = "Variable Contributions to PC2"
+)
+```
+
+```{r pca-loadings-table, echo=FALSE, include=FALSE}
+loadings_df <- as.data.frame(round(pca_result$rotation[, 1:3], 3))
+colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+
+kable(
+  loadings_df,
+  caption  = "PCA loadings (first three components). Values over 0.4 are highlighted in bold.",
+  linesep  = "",
+  booktabs = TRUE
+) %>%
+  kable_styling(
+    full_width = FALSE,
+    position   = "center"
+  ) %>%
+  column_spec(2, bold = abs(loadings_df$PC1) >= 0.4) %>%
+  column_spec(3, bold = abs(loadings_df$PC2) >= 0.4) %>%
+  column_spec(4, bold = abs(loadings_df$PC3) >= 0.4)
+```
+
+```{r pca-channel, echo=FALSE, include=FALSE, fig.width=8, fig.height=6}
+fviz_pca_ind(
+  pca_result,
+  geom.ind    = "point",
+  col.ind     = factor(data$Channel),
+  palette     = c("#E64B35", "#4DBBD5"),
+  addEllipses = TRUE,
+  legend.title = "Channel",
+  title       = "PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
+)
+```
+
+```{r pca-grid, echo=FALSE, include=TRUE, fig.width=12, fig.height=10, fig.cap="Principal Component Analysis of log-transformed, standardised spending data. (a) Scree plot showing the percentage of variance explained by each component. (b) Loadings of the original variables on the first four principal components. Values exceeding 0.4 in magnitude indicate strong contributions. (c) Biplot overlaying variable loadings (red arrows) on individual observations. (d) Individuals projected onto PC1-PC2, coloured by distribution channel (1 = HoReCa, 2 = Retail) with 95% concentration ellipses."}
+
+# --- Top left: Scree plot ---
+p1 <- fviz_eig(
+  pca_result,
+  addlabels = TRUE,
+  ylim = c(0, 60),
+  main = "(a) Scree Plot - Variance Explained by Principle Component (PC)"
+)
+
+# --- Top right: Loadings table as a grob ---
+loadings_df <- as.data.frame(round(pca_result$rotation[, 1:3], 3))
+colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+
+# --- Top right: Loadings table ---
+loadings_df <- as.data.frame(pca_result$rotation[, 1:4])
+colnames(loadings_df) <- c("PC1", "PC2", "PC3", "PC4")
+# loadings_df <- as.data.frame(pca_result$rotation[, 1:3])
+# colnames(loadings_df) <- c("PC1", "PC2", "PC3")
+loadings_df[] <- lapply(loadings_df, function(x) format(round(x, 3), nsmall = 3))
+
+p2 <- ggtexttable(
+  loadings_df,
+  theme = ttheme(
+    "blank",
+    tbody.style = tbody_style(
+      size  = 13,
+      hjust = 1.00, #controls alignment {0.00, 0.5, 1.00} 
+      x     = 0.95, #controls alignment {0.05, 0.5, 0.95} 
+      fill  = "white"
+    ),
+    colnames.style = colnames_style(
+      size  = 13,
+      face  = "bold",
+      hjust = 1.00,
+      x     = 0.95,
+      fill  = "white"
+    ),
+    rownames.style = rownames_style(
+      size  = 13,
+      face  = "plain",
+      hjust = 0,
+      x     = 0.05,
+      fill  = "white"
+    )
+  )
+) %>%
+  tab_add_hline(at.row = 1:2, row.side = "top", linewidth = 2) %>%
+  tab_add_hline(at.row = nrow(loadings_df) + 1, row.side = "bottom", linewidth = 2) +
+  labs(title = "(b) PCA Loadings") +
+  theme(
+    plot.title      = element_text(hjust = 0.5, size = 13),
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.background = element_rect(fill = "white", colour = NA)
+  )
+
+# --- Bottom left: Biplot ---
+p3 <- fviz_pca_biplot(
+  pca_result,
+  label   = "none",
+  col.var = "firebrick",
+  col.ind = alpha("steelblue", 0.3),
+  title   = "(c) PCA Biplot (log-transformed, standardised data)"
+)
+
+# Pull arrow endpoints from layer 4 of the built plot
+arrows <- ggplot_build(p3)$data[[4]]
+
+var_df <- data.frame(
+  x     = arrows$xend,
+  y     = arrows$yend,
+  label = rownames(pca_result$rotation)
+)
+
+p3 <- p3 +
+  ggrepel::geom_text_repel(
+    data        = var_df,
+    aes(x = x, y = y, label = label),
+    colour      = "firebrick",
+    size        = 3.5,
+    bg.color    = "white",
+    bg.r        = 0.15,
+    inherit.aes = FALSE
+  )
+
+# --- Bottom right: Channel plot ---
+p4 <- fviz_pca_ind(
+  pca_result,
+  geom.ind     = "point",
+  col.ind      = factor(data$Channel),
+  palette      = c("#E64B35", "#4DBBD5"),
+  addEllipses  = TRUE,
+  legend.title = "Channel",
+  title        = "(d) PCA - Individuals Coloured by Channel (1=HoReCa, 2=Retail)"
+)
+
+# BE note: qol to get bottom two plots to align vertically
+# ggplot_build(p3)$layout$panel_params[[1]]$y.range
+# ggplot_build(p4)$layout$panel_params[[1]]$y.range
+
+p3 <- p3 + coord_cartesian(ylim = c(-5.58, 5.24))
+p4 <- p4 + coord_cartesian(ylim = c(-5.58, 5.24))
+
+# --- Combine 2x2 ---
+(p1 | p2) / (p3 | p4)
+```
+
+
+<!-- ```{=latex} -->
+<!-- \clearpage -->
+<!-- \newpage -->
+<!-- ``` -->
+
+# Customer clustering {#qtwo}
+
+```{r q2-prep, echo=FALSE, include=FALSE}
+# ==============================================================================
+# Q2 Clustering
+# ==============================================================================
+
+# K-Means for k=2 through 5
+KMeans.results <- list()
+for (k in 2:5) {
+  KMeans.results[[k]] <- kmeans(scaled_data, centers = k, nstart = 25)
+}
+
+# Assign K-Means labels programmatically
+km3 <- KMeans.results[[3]]
+km3_ch_tab <- table(km3$cluster, data$Channel)
+horeca_pct <- km3_ch_tab[, 1] / rowSums(km3_ch_tab)
+
+horeca_cluster <- as.character(which.max(horeca_pct))
+retail_cluster <- as.character(which.min(horeca_pct))
+mixed_cluster  <- as.character(setdiff(1:3, c(horeca_cluster, retail_cluster)))
+
+km3_names <- setNames(
+  c("HoReCa Dominant", "Retail Dominant", "Mixed Basket"),
+  c(horeca_cluster, retail_cluster, mixed_cluster)
+)
+km3_colours <- setNames(
+  c("#B2182B", "#2166AC", "#FDB863"),
+  c(horeca_cluster, retail_cluster, mixed_cluster)
+)
+km3_order <- c(retail_cluster, mixed_cluster, horeca_cluster)
+
+# silhouette scores (referenced inline)
+sil_scores <- sapply(2:10, function(k) {
+  km <- kmeans(scaled_data, centers = k, nstart = 25)
+  sil <- cluster::silhouette(km$cluster, dist(scaled_data))
+  mean(sil[, 3])
+})
+names(sil_scores) <- 2:10
+
+# GMM on spending data (referenced inline for $G, $modelName, $bic)
+gmm_spending <- Mclust(data = scaled_data)
+
+# BIC comparison table (referenced inline)
+bic_vals    <- gmm_spending$BIC
+best_per_k  <- apply(bic_vals, 1, max, na.rm = TRUE)
+
+# Ward's hierarchical clustering (referenced in main text)
+dist_mat    <- dist(scaled_data, method = "euclidean")
+hc          <- hclust(dist_mat, method = "ward.D2")
+hc_clusters <- cutree(hc, k = 3)
+
+# Shorthand references used in main text
+km3 <- KMeans.results[[3]]
+km2 <- KMeans.results[[2]]
+data$km3_cluster <- km3$cluster
+data$km2_cluster <- km2$cluster
+data$gmm_cluster <- as.integer(gmm_spending$classification)
+```
+
+K-Means clustering was applied to the same log-transformed, standardised
+spending data used for PCA. Silhouette analysis identifies k=2 as optimal 
+(`r formatC(sil_scores["2"], format = "f", digits = 3)`), which recovers the known
+Channel distinction and validates the clustering approach. However, the
+silhouette score for k=3 remains strong 
+(`r formatC(sil_scores["3"], format = "f", digits = 3)`), and the marginal 
+reduction in cluster quality yields a substantially richer segmentation. Beyond
+k=3, scores plateau around 0.19 with no meaningful recovery (Appendix, Figure
+\@ref(fig:silhouette-plot)), suggesting additional clusters fragment genuine
+structure rather than reveal new segments.
+
+K-Means was chosen for its interpretability and computational efficiency on this
+dataset. As robustness checks, both Ward's hierarchical clustering and Gaussian
+Mixture Modelling (GMM) were applied to the same input. Ward's method (k=3)
+agrees with K-Means on the dominant cluster structure, with disagreement
+confined to boundary observations between the smaller segments (Appendix
+\@ref(apd:wards-clust)). GMM relaxes K-Means' spherical cluster assumption: the
+BIC selected a `r gmm_spending$G`-component `r gmm_spending$modelName` model
+(Appendix, Figures \@ref(fig:silhouette-plot) & \@ref(fig:bic-plot)),
+splitting both channels into finer sub-segments. Cross-tabulation against
+Channel and Region (Appendix, Tables
+\@ref(tab:q2-tables-2-apd)–\@ref(tab:q2-tables-4-apd)) confirms that these
+sub-segments are spending-driven rather than geographic, with Region distributed
+roughly proportionally within each cluster.
+
+```{r q2-revenue-triptych, echo=FALSE, fig.width=12, fig.height=10, fig.cap="Revenue concentration by product category under three segmentation approaches. Top: the distributor's existing binary Channel classification. Middle: K-Means (k=3) spending-based clusters. Bottom: Gaussian Mixture Modelling (GMM) (k=5) spending-based clusters. Crucially, the K-Means and GMM segmentations were derived solely from log-transformed, standardised spending data without access to Channel labels. Each bar shows the percentage of total category spend attributable to each segment and the Total column shows each segment's share of overall revenue."}
+
+n_total <- nrow(data)
+spend_cols <- c(
+  "Fresh",
+  "Milk",
+  "Grocery",
+  "Frozen",
+  "Detergents_Paper",
+  "Delicassen"
+)
+cat_levels <- c(spend_cols, "Total")
+
+# ==============================================================================
+# Helper: from a grouping vector, produce a revenue-concentration data frame
+# ==============================================================================
+build_shares <- function(group_vec, group_name = "cluster") {
+  
+  # Sums per group
+  sums <- aggregate(
+    cbind(Fresh, Milk, Grocery, Frozen, Detergents_Paper, Delicassen) ~ grp,
+    data = cbind(data[, spend_cols], grp = group_vec),
+    FUN  = sum
+  )
+  
+  # Column percentages
+  pcts <- sums
+  for (col in spend_cols) {
+    pcts[[col]] <- sums[[col]] / sum(sums[[col]]) * 100
+  }
+  
+  # Pivot long
+  pcts_long <- reshape(
+    pcts, direction = "long",
+    varying = spend_cols, v.names = "Pct",
+    timevar = "Category", times = spend_cols
+  )
+  pcts_long$Cluster <- factor(pcts_long$grp)
+  row.names(pcts_long) <- NULL
+  
+  # Total column
+  sums$total <- sums$Fresh + sums$Milk + sums$Grocery +
+                sums$Frozen + sums$Detergents_Paper + sums$Delicassen
+  totals <- data.frame(
+    grp      = sums$grp,
+    Category = "Total",
+    Pct      = sums$total / sum(sums$total) * 100,
+    Cluster  = factor(sums$grp)
+  )
+  
+  # Combine
+  out <- rbind(pcts_long[, c("grp", "Category", "Pct", "Cluster")], totals)
+  out$Category <- factor(out$Category, levels = cat_levels)
+  out
+}
+
+# ==============================================================================
+# Helper: from a grouping vector, produce legend labels "Label-X (n=Y, Z%)"
+# ==============================================================================
+build_labels <- function(group_vec, names_dict = NULL, prefix = "Cluster") {
+  counts <- as.data.frame(table(group_vec))
+  colnames(counts) <- c("grp", "n")
+  
+  # Calculate percentages
+  counts$pct <- (counts$n / n_total) * 100
+  
+  # Construct the label string
+  if (!is.null(names_dict)) {
+    # If a dictionary is provided, map the group number to your custom name
+    counts$desc <- names_dict[as.character(counts$grp)]
+    counts$label <- sprintf("%s (n=%d, %.0f%%)", counts$desc, counts$n, counts$pct)
+  } else {
+    # Fallback to the original Prefix-X format if no dictionary is supplied
+    counts$label <- sprintf("%s-%s (n=%d, %.0f%%)", prefix, counts$grp, counts$n, counts$pct)
+  }
+  
+  # Return a named vector required by scale_fill_manual / scale_fill_brewer
+  setNames(counts$label, as.character(counts$grp))
+}
+
+# ==============================================================================
+# Helper: standard revenue concentration plot
+# ==============================================================================
+plot_shares <- function(share_data, fill_labels, title, palette = "Set1",
+                        manual_colours = NULL) {
+  p <- ggplot(share_data, aes(x = Category, y = Pct, fill = Cluster)) +
+    geom_col(position = "stack", width = 0.7) +
+    geom_text(
+      aes(label = sprintf("%.0f%%", Pct)),
+      position = position_stack(vjust = 0.5),
+      size = 3, colour = "white"
+    ) +
+    geom_vline(xintercept = 6.5, linetype = "dashed", colour = "grey40") +
+    labs(title = title, y = "Share of total category spend (%)",
+         x = "", fill = "Segment") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  
+  if (!is.null(manual_colours)) {
+    p <- p + scale_fill_manual(values = manual_colours, labels = fill_labels)
+  } else {
+    p <- p + scale_fill_brewer(palette = palette, labels = fill_labels)
+  }
+  p
+}
+
+# ==============================================================================
+# Build all three plots
+# ==============================================================================
+
+# Define the descriptive segment names based on the spending profiles
+channel_names <- c(
+  "1" = "HoReCa",
+  "2" = "Retail"
+)
+
+# km3_names <- c(
+#   "1" = "Mixed Basket",
+#   "2" = "HoReCa Dominant",
+#   "3" = "Retail Dominant"
+# )
+
+gmm_names <- c(
+  "1" = "Heavy Retail",
+  "2" = "Diversified Retail",
+  "3" = "High-volume HoReCa",
+  "4" = "Balanced HoReCa",
+  "5" = "Low-spend / Mixed"
+)
+
+# factor ordering: HoReCa-type first (bottom), Retail-type last (top)
+channel_order <- c("2", "1") 
+# HoReCa, Retail
+
+# km3_order <- c("3", "1", "2") 
+# # HoReCa Dominant, Mixed, Retail Dominant
+
+gmm_order <- c("1", "2", "5", "4", "3") 
+# High-vol HoReCa, Balanced HoReCa, Low-spend, Diversified Retail, Heavy Retail
+
+gmm_colours <- c(
+  "3" = "#B2182B",   # deep red - high-vol HoReCa
+  "4" = "#E66101",   # orange - balanced HoReCa
+  "5" = "#FDB863",   # amber - low-spend mixed
+  "2" = "#92C5DE",   # light blue - diversified Retail
+  "1" = "#2166AC"    # deep blue - heavy Retail
+)
+# km3_colours <- c(
+#   "2" = "#B2182B",   # HoReCa Dominant
+#   "1" = "#FDB863",   # Mixed Basket
+#   "3" = "#2166AC"    # Retail Dominant
+# )
+ch_colours <- c("1" = "#E64B35", "2" = "#4DBBD5")
+
+palettes <- list(
+  rdylbu = list(
+    gmm = c("3"="#B2182B", "4"="#E66101", "5"="#FDB863", "2"="#92C5DE", "1"="#2166AC"),
+    km3 = c("2"="#B2182B", "1"="#FDB863", "3"="#2166AC"),
+    ch  = c("1"="#E64B35", "2"="#4DBBD5")
+  ),
+  okabe_ito = list(
+    gmm = c("3"="#D55E00", "4"="#E69F00", "5"="#F0E442", "2"="#56B4E9", "1"="#0072B2"),
+    km3 = c("2"="#D55E00", "1"="#F0E442", "3"="#0072B2"),
+    ch  = c("1"="#D55E00", "2"="#0072B2")
+  ),
+  viridis = list(
+    gmm = c("3"="#440154", "4"="#3B528B", "5"="#21918C", "2"="#5EC962", "1"="#FDE725"),
+    km3 = c("2"="#440154", "1"="#21918C", "3"="#FDE725"),
+    ch  = c("1"="#440154", "2"="#FDE725")
+  )
+)
+
+active <- palettes$rdylbu
+
+gmm_colours <- active$gmm
+km3_colours <- active$km3
+ch_colours  <- active$ch
+
+# (a) Channel baseline
+ch_vec    <- as.integer(data$Channel)
+ch_shares <- build_shares(ch_vec)
+ch_shares$Cluster  <- factor(ch_shares$Cluster,  levels = channel_order)
+ch_labels <- build_labels(ch_vec, names_dict = channel_names)
+
+p_channel <- plot_shares(
+  ch_shares,
+  ch_labels,
+  title = "(a) Baseline: Channel",
+  manual_colours = ch_colours
+) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+
+# (b) K-Means k=3
+km3_vec    <- as.integer(KMeans.results[[3]]$cluster)
+km3_shares <- build_shares(km3_vec)
+km3_shares$Cluster <- factor(km3_shares$Cluster, levels = km3_order)
+km3_labels <- build_labels(km3_vec, names_dict = km3_names)
+
+p_km3 <- plot_shares(
+  km3_shares,
+  km3_labels,
+  title = "(b) K-Means (k = 3)",
+  manual_colours = km3_colours
+) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+
+# (c) Gaussian Mixture Modelling k=5
+gmm_vec    <- as.integer(gmm_spending$classification)
+gmm_shares <- build_shares(gmm_vec)
+gmm_shares$Cluster <- factor(gmm_shares$Cluster, levels = gmm_order)
+gmm_labels <- build_labels(gmm_vec, names_dict = gmm_names)
+
+p_gmm <- plot_shares(
+  gmm_shares, gmm_labels,
+  title = "(c) Gaussian Mixture Modelling (k = 5)", 
+  manual_colours = gmm_colours
+)
+
+# ==============================================================================
+# Stack
+# ==============================================================================
+p_channel / p_km3 / p_gmm + plot_layout(heights = c(1, 1, 1.15))
+```
+
+
+Figure \@ref(fig:q2-revenue-triptych) presents the commercial impact of each
+segmentation. Under the existing binary Channel label, HoReCa customers account
+for 76% of Fresh revenue but only 68% of customers. K-Means (k=3) identifies a
+"Mixed Basket" segment, representing 48% of customers, whose spending does not
+align cleanly with either channel. GMM further distinguishes Heavy Retail from
+Diversified Retail, and separates High-volume HoReCa from Balanced HoReCa, each
+with distinct category concentration profiles.
+
+The strength of this approach is that it operates entirely without access to
+Channel or Region labels. The near-perfect recovery of the Channel distinction
+validates the segmentation as behaviourally grounded, while the emergence of
+additional clusters reveals sub-structure the existing classification does not
+capture. However, the commercial value of a 5-segment model over a 3-segment
+model cannot be determined from a single cross-sectional snapshot. Validation
+would require longitudinal purchasing data, margin information, and ideally a
+controlled trial of differentiated service strategies across segments.
+
+
+```{=latex}
+\newpage
+```
+
+
+# Notes for clustering (think will move to appendix) {-}
+
+_Perform clustering on the customers_
+
+```{r Q2, echo=FALSE, fig.pos="!ht"}
+# ==============================================================================
+# Q2 Clustering
+# ==============================================================================
+## cluster log-transformed, standardised data (same as PCA input)
+scaled_data <- scale(spending_log)
+ 
+```
+
+TBI
+
+## KMeans
+
+```{r}
+
+KMeans.results <- list()
+
+for (k in 2:5) {
+  km.out = kmeans(scaled_data, centers= k, nstart = 25)  
+  KMeans.results[[k]] <- km.out
+}
+
+```
+
+
+```{r}
+
+for (k in 2:5) {
+  km.out <- KMeans.results[[k]]
+  print(fviz_cluster(km.out, scaled_data,
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("KMeans (k=%s)", k) )
+  )
+}
+
+```
+
+```{r}
+
+fviz_nbclust(scaled_data, kmeans, method='silhouette', nstart = 25)
+sil_scores <- sapply(2:10, function(k) {
+  km <- kmeans(scaled_data, centers = k, nstart = 25)
+  silhouette_avg <- cluster::silhouette(km$cluster, dist(scaled_data))
+  mean(silhouette_avg[, 3])
+})
+names(sil_scores) <- 2:10
+
+# Quick table
+sil_df <- data.frame(
+  k         = 2:10,
+  Silhouette = round(sil_scores, 4)
+)
+print(sil_df)
+```
+
+All K-Means results use `nstart = 2` to mitigate sensitivity to random initialisation.
+
+
+```{r}
+
+for (k in 2:5) {
+  km.out <- KMeans.results[[k]]
+  print(
+    fviz_silhouette(cluster::silhouette(km.out$cluster, dist(scaled_data)^2))
+  )
+}
+
+```
+
+### Split up by Channel
+
+```{r}
+
+spending.cols = c('Fresh', 'Milk', 'Grocery', 'Frozen', 'Detergents_Paper', 'Delicassen')
+
+scaled_df <- cbind(data[c('Channel', 'Region')], scaled_data)
+
+ch1_scaled_df <- scaled_df |> filter(Channel == 1)
+
+ch2_scaled_df <- scaled_df |> filter(Channel == 2)
+
+```
+
+
+
+```{r}
+
+
+for (k in 2:5) {
+  km.out = kmeans(ch1_scaled_df[spending.cols], centers= k, nstart = 20)  
+  
+  print(fviz_cluster(km.out,
+                     ch1_scaled_df[spending.cols],
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("Channel 1KMeans (k=%s)", k) )
+  )
+}
+
+```
+
+
+## MDS scaled
+
+```{r}
+
+# Gower distance on all 8 variables scaled (Channel & Region as factors)
+scaled_df$Channel <- factor(data$Channel)
+scaled_df$Region  <- factor(data$Region)
+
+gow_scaled <- cluster::daisy(scaled_df, metric = "gower")
+ 
+# Non-metric MDS
+mds_scaled <- MASS::isoMDS(gow_scaled, k = 2)
+
+```
+
+
+```{r}
+
+mds_scaled_out <- data.frame(
+  MDS1 = mds_scaled$points[, 1],
+  MDS2 = mds_scaled$points[, 2],
+  Region = scaled_df$Region,
+  Channel = scaled_df$Channel
+)
+
+ggplot(mds_scaled_out) +
+  geom_point(aes(x=MDS1, y=MDS2, colour=Region, shape=Channel)) +
+  labs(title = 'MDS using Gower distance of Region, Channel and scaled 6 spending variables')
+
+```
+
+```{r}
+
+for (k in 4:8) {
+  km.out = kmeans(mds_scaled$points, centers= k, nstart = 20)  
+  
+  print(fviz_cluster(km.out,
+                     mds_scaled$points,
+                     geom = c('point'),
+                     ellipse.type = "norm",
+                     main = sprintf("KMeans (k=%s) on MDS output of scaled data", k),
+                     xlab='' , ylab='yy')
+  )
+}
+
+```
+
+
+## GMM
+
+```{r q2-gmm}
+
+gmm_mds_scaled <- Mclust(data=mds_scaled_out[c('MDS1', 'MDS2')])
+
+summary(gmm_mds_scaled, parameters=TRUE)
+
+gmm_mds_scaled$BIC[1]
+gmm_mds_scaled$modelName
+gmm_mds_scaled$G
+
+# BIC table
+bic_table <- gmm_mds_scaled$BIC
+# top 3
+summary(gmm_mds_scaled$BIC)
+
+
+```
+```{r q2-gmm-mds-2}
+gmm_clusters <- gmm_mds_scaled$classification
+
+crosstab <- table(
+  GMM     = gmm_clusters,
+  Channel = data$Channel,
+  Region  = data$Region
+)
+
+# flatten
+ftable(crosstab)
+# BE note:
+# GMM on MDS performs as predicted:
+# 6 of the 8 clusters map perfectly to the 6 Channel x Region groups.
+# The "extra" 2 clusters seem to be made from taking the two biggest groups 
+# (HoReCa/Other and Retail/Other) and chopping them in half because BIC rewards 
+# the density fit
+# (think cluster 5 is just 16 awkward boundary points caught in the middle).
+
+```
+
+```{r}
+plot(gmm_mds_scaled, what="BIC")
+plot(gmm_mds_scaled, what="classification")
+plot(gmm_mds_scaled, what="uncertainty")
+plot(gmm_mds_scaled, what="density")
+```
+
+Q: did GMM find 8 components because BIC rewarded the fit improvement from splitting two of the denser islands, not because it discovered genuinely novel spending structure. The uncertainty plot supports this: low uncertainty everywhere except at the boundaries where islands were artificially bisected, which means those splits are the least confident assignments. If they were real sub-segments, you'd expect the uncertainty to be low within each sub-group and high only at the edges between genuinely different populations.
+
+
+
+```{r}
+# Compare GMM-on-MDS clusters to K-Means-on-spending clusters
+table(
+  GMM      = gmm_clusters,
+  KMeans_3 = KMeans.results[[3]]$cluster
+)
+
+# The GMM-on-MDS vs K-Means cross-tab shows that GMM cluster 2 (which is 145
+# HoReCa/Other customers) gets split across K-Means clusters 1, 2, and 3 
+# as (25, 116, 4). 
+# This is not both methods capturing the same structure differently.  
+# It's GMM lumped together customers that K-Means separated, because GMM was
+# grouping by demographic label while K-Means was grouping by spending. 
+# 
+# The lack of clean one-to-one mapping between the two sets of clusters shows
+# they're driven by different features. If they captured the same structure,
+# we'd see block-diagonal patterns with each GMM cluster mapping mostly to
+# one K-Means cluster. 
+# Instead we get diffuse rows, meaning a single GMM cluster contains customers 
+# from multiple spending-based segments.
+```
+
+```{r}
+# GMM directly on the same scaled spending data as K-Means
+gmm_spending <- Mclust(data = scaled_data)
+summary(gmm_spending)
+
+# Compare like-for-like
+table(
+  GMM_spending = gmm_spending$classification,
+  KMeans_3     = KMeans.results[[3]]$cluster
+)
+#             KMeans_3
+# GMM_spending   1   2   3
+#            1   4   0  47  ← almost entirely KM3
+#            2  91   1   9  ← almost entirely KM1
+#            3  33 122   0  ← mostly KM2, some KM1
+#            4  11  62   8  ← mostly KM2, some KM1
+#            5   8  27  17  ← genuinely mixed
+
+
+# validate against Channel
+table(
+  GMM_spending = gmm_spending$classification,
+  Channel      = data$Channel
+)
+#             Channel
+# GMM_spending   1   2
+#            1   7  44  ← Retail
+#            2  18  83  ← Retail (but 18 HoReCa leaking in)
+#            3 149   6  ← HoReCa
+#            4  77   4  ← HoReCa
+#            5  47   5  ← HoReCa
+
+# GMM has split both channels into sub-groups:
+# Retail: clusters 1 and 2 (small vs large retailers?)
+# HoReCa: clusters 3, 4, and 5 (three tiers of hospitality spending?)
+# 
+# This is more nuanced than K-Means k=3, which finds one Retail group and splits
+# HoReCa in two (or vice versa).
+# GMM's flexibility lets it find finer-grained structure
+# But question is whether those extra splits are commercially meaningful or just
+# overfitting density variation.
+
+table(
+  GMM_spending = gmm_spending$classification,
+  Channel      = data$Channel,
+  Region       = data$Region
+) |> ftable()
+#                     Region   1   2   3
+# GMM_spending Channel                   
+# 1            1                1   0   6   ← 7 HoReCa (scattered)
+#              2                7   8  29   ← 44 Retail
+# 2            1                5   0  13   ← 18 HoReCa
+#              2                9  10  64   ← 83 Retail
+# 3            1               34  15 100   ← 149 HoReCa
+#              2                1   1   4   ← 6 Retail (leakage)
+# 4            1               12  10  55   ← 77 HoReCa
+#              2                1   0   3   ← 4 Retail (leakage)
+# 5            1                7   3  37   ← 47 HoReCa
+#              2                0   0   5   ← 5 Retail (leakage)
+#
+# Region is scattered within each GMM cluster.
+# Cluster 3 (HoReCa) has 34 Lisbon, 15 Oporto, 100 Other - roughly
+# proportional to the overall Region distribution (77/47/316).
+# The sub-segments are spending-driven, not geographic.
+# 
+# GMM spending profiles (medians):
+#   Cluster 1 (n=51):  Retail - low across board, very low Fresh/Frozen
+#   Cluster 2 (n=101): Retail - higher Milk/Grocery/Detergents (big retailers?)
+#   Cluster 3 (n=155): HoReCa - balanced, moderate Fresh, low Detergents
+#   Cluster 4 (n=81):  HoReCa - lower spend tier
+#   Cluster 5 (n=52):  HoReCa - lowest tier, minimal across all categories
+
+# Both GMM and K-means on spending data operate on the same input, blind to labels. 
+# K-Means says 2–3 segments; GMM says 5.
+# Overlap on the major segments validates both. 
+# Disagreement on finer is interesting -> discussion 
+# Q: does the data genuinely support 5 actionable segments, or is K-Means'
+# simpler solution more practical for a distributor who needs to operationalise
+# the segmentation?
+```
+
+```{r q2-median-spend-gmm}
+# Compute median spending per category for each GMM cluster
+data$gmm_cluster <- gmm_spending$classification
+data %>%
+  group_by(gmm_cluster) %>%
+  summarise(
+    n = n(),
+    across(all_of(spending.cols), median),
+    .groups = "drop"
+  )
+
+# GMM cluster profiles (median raw spending):
+#   GMM1 (n=51):  Grocery 13,567 | Det 6,830 | Milk 7,845 | Fresh 1,454
+#                 → Heavy Retail: grocery/household dominant, minimal Fresh
+#   GMM2 (n=101): Grocery 11,238 | Fresh 7,842 | Milk 7,243 | Det 4,621
+#                 → Diversified Retail: buys across all categories
+#   GMM3 (n=155): Fresh 14,276 | Frozen 3,383 | Grocery 2,405 | Det 325
+#                 → High-volume HoReCa: Fresh-dominated, minimal household
+#   GMM4 (n=81):  Fresh 5,969 | Milk 3,218 | Grocery 3,133 | Frozen 907
+#                 → Small HoReCa: same category mix as GMM3 but ~40% of spend
+#   GMM5 (n=52):  Grocery 3,712 | Fresh 2,270 | Milk 1,572 | Frozen 893
+#                 → Lowest tier: minimal spend across all categories
+#
+# Clusters 3 and 4 (both HoReCa) differ in BOTH scale AND mix:
+#   - Scale: GMM3 median Fresh is 14,276 vs GMM4's 5,969 (2.4x)
+#   - Mix:   GMM3 is 83% perishable (Fresh+Frozen+Deli = 18,592/21,175)
+#            GMM4 is more balanced (Fresh+Frozen+Deli = 7,532/14,903 = 51%)
+#   This is a genuine behavioural split, not just big-vs-small.
+#   GMM3 are likely restaurants buying fresh produce daily;
+#   GMM4 are likely hotels/cafés with more diversified procurement.
+#
+# Retail split (GMM1 vs GMM2) is similarly informative:
+#   - GMM1: concentrated on Grocery+Det+Milk (supermarket profile)
+#   - GMM2: spreads spend more evenly including Fresh (convenience store?)
+```
+
+## Spending quantification
+
+
+```{r q2-plots-draft, echo=FALSE, include=TRUE, fig.width=10, fig.height=10, fig.cap = "Cluster assignments from K-Means (k=3, top) and GMM (k=5, bottom) projected onto the first two principal components, which together capture 71.3 percent of total variance. All clustering was performed in the full six-dimensional standardised log-spending space; these plots compress that structure into two dimensions for visualisation. Apparent overlap between clusters  may therefore reflect the loss of separating information in the remaining 28.7 percent of variance captured by PC3--PC6, rather than  genuine ambiguity in cluster assignment."}
+# Clusters are computed in the full six-dimensional standardised space and
+# projected onto the first two principal components for visualisation, which
+# capture 71.3% of total variance.
+
+# PCA scores (already computed)
+pca_scores <- as.data.frame(pca_result$x[, 1:2])
+colnames(pca_scores) <- c("PC1", "PC2")
+
+# Axis labels with variance explained
+pc1_var <- summary(pca_result)$importance[2, 1] * 100
+pc2_var <- summary(pca_result)$importance[2, 2] * 100
+pc1_lab <- sprintf("PC1 (%.1f%%)", pc1_var)
+pc2_lab <- sprintf("PC2 (%.1f%%)", pc2_var)
+
+# ---- Top panel: K-Means k=3 ----
+pca_scores$KM3 <- factor(km3$cluster)
+
+p_km <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = KM3)) +
+  geom_point(alpha = 0.5, size = 1.5) +
+  # stat_ellipse(level = 0.68, linewidth = 0.8) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(
+    title  = "(a) K-Means (k = 3)",
+    x      = pc1_lab,
+    y      = pc2_lab,
+    colour = "Cluster"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# ---- Bottom panel: GMM k=5 ----
+pca_scores$GMM5 <- factor(gmm_spending$classification)
+
+p_gmm <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = GMM5)) +
+  geom_point(alpha = 0.5, size = 1.5) +
+  # stat_ellipse(level = 0.68, linewidth = 0.8) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(
+    title  = "(b) GMM (k = 5)",
+    x      = pc1_lab,
+    y      = pc2_lab,
+    colour = "Cluster"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+# ---- Stack ----
+p_km / p_gmm
+```
+
+```{=latex}
+\newpage
+```
+
+The strength of the spending-only clustering approach is precisely that it
+operates without access to the Channel and Region labels. The near-perfect
+recovery of the Channel distinction (Table \@ref(tab:q2-tables-3))
+validates the segmentation as behaviourally grounded, while the emergence of a
+third cluster reveals sub-structure that the existing classification does not
+capture. By contrast, incorporating categorical variables via Gower's distance
+produces clusters that merely reproduce known labels (Appendix
+\@ref(apd:suppl-mds)), confirming that the unsupervised, spending-only approach
+is both more rigorous and more commercially informative.
+
+```{=latex}
+\newpage
+```
+
+---
+
+# References {-}
