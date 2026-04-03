@@ -69,11 +69,21 @@ This R Markdown document was created as part of a group assignment for SMM636 at
 #               Hence the knitr settings.
 #
 # Dependencies:
-#   - tidyverse: loads dplyr, tidyr, ggplot2, purrr (& others)
-#   - TBI
-#
-# Acknowledgements
-#   - TBI
+#   - tidyverse:    dplyr, tidyr, ggplot2, purrr, stringr, readr, forcats, tibble
+#   - patchwork:    stacking/combining ggplot objects (/ and | operators)
+#   - corrplot:     correlation matrix heatmaps
+#   - factoextra:   PCA scree plots, silhouette plots, fviz_* family
+#   - mclust:       Gaussian Mixture Modelling (Mclust, BIC selection)
+#   - ggsankeyfier: Sankey diagram geoms for ggplot2
+#   - Polychrome:   automatic palette generation (createPalette)
+#   - kableExtra:   LaTeX/HTML table formatting (kable_styling, pack_rows)
+#   - callr:        isolated R subprocesses for LLM script execution
+#   - e1071:        skewness function (called via e1071::skewness)
+#   - ggpubr:       used for ggplot quadrant in figure 1
+#   
+# NOT loaded (namespace-only to avoid masking dplyr::select):
+#   - cluster:       called as cluster::daisy(), cluster::silhouette()
+#   - MASS:          called as MASS::isoMDS()
 # ============================================================================ #
 ```
 
@@ -120,34 +130,16 @@ cat("\014") # Clean console
 
 ```{r load-dependencies, include=FALSE, echo=FALSE}
 #------------------- Load dependencies / external libraries -------------------#
-# --- Core Data Manipulation ---
-library(tidyverse)  # loads dplyr, tidyr, ggplot2, purrr, etc.
-
-# --- Visualization & Plot Arrangement ---
-library(patchwork)  # combining multiple ggplot objects
-library(gridExtra)  # arranging base/grid plots
-library(ggpubr)     # publication-ready plot themes/utilities
-library(corrplot)   # correlation heatmaps
-library(GGally)     # pairs plots
-library(factoextra) # PCA & clustering visualizations
-
-# --- Analytics & Modeling ---
-library(NbClust)    # optimal-k diagnostics
-
-# NOTE: The packages below are deliberately NOT loaded into the global 
-# environment to prevent function masking conflicts (e.g., MASS::select 
-# breaking dplyr::select). Call their functions directly using namespaces:
-# cluster::daisy(), MASS::isoMDS()
-# library(MASS)     
-# library(cluster)
-
-library(mclust)
-
-library(ggsankeyfier)
-library(Polychrome)
-
-# --- Reporting & Tables ---
-library(kableExtra) # for formatting output tables
+library(tidyverse)      # dplyr, tidyr, ggplot2, purrr, stringr, readr, forcats
+library(patchwork)      # stacking/combining ggplot objects (/ and | operators)
+library(corrplot)       # correlation matrix heatmaps
+library(factoextra)     # PCA scree plots, silhouette plots, fviz_* family
+library(mclust)         # Gaussian Mixture Modelling (Mclust, BIC selection)
+library(ggsankeyfier)   # Sankey diagram geoms for ggplot2
+library(Polychrome)     # automatic palette generation (createPalette)
+library(kableExtra)     # LaTeX/HTML table formatting (kable_styling, pack_rows)
+library(callr)          # isolated R subprocesses for LLM script execution
+library(ggpubr)         # table in ggplot quad figure
 ```
 
 ```{r custom-functions, include=FALSE, echo=FALSE}
@@ -1334,10 +1326,10 @@ group_indices <- group_indices %>%
 kable_data <- all_rows %>%
   dplyr::select(label, ours, chatgpt, claude)
 
-colnames(kable_data) <- c("Analysis Step", "Our Analysis", "ChatGPT (4o)", "Claude")
+colnames(kable_data) <- c("Analysis Step", "Our Analysis", "ChatGPT (GPT-5.3)", "Claude (Sonnet 4.6)")
 
 caption_text <- paste0(
-  "Comparison of analytical steps: our pipeline vs \\ two LLMs. ",
+  "Comparison of analytical steps for our approach vs \\ two LLMs. ",
   sym_legend
 )
 
@@ -2122,8 +2114,6 @@ agglomeration.
 # Prompts and LLM outputs {#apd-llm-information}
 
 ```{r llm-runner-setup, include=FALSE}
-library(callr)
-
 llm_plot_dir <- "LLM-output/figures"
 dir.create(llm_plot_dir, showWarnings = FALSE, recursive = TRUE)
 
@@ -2955,7 +2945,11 @@ cat("================================================================\n")
 
 ### ChatGPT (GPT-5.3) output used in the prompt
 
+Example Segment Types
 
+1. High Fresh, Low Grocery Likely restaurants / HORECA
+2. High Grocery & Detergents Likely retail stores
+3. Balanced / low spend  Small or low-frequency buyers
 
 ### Response 4: Claude (Sonnet 4.6)
 

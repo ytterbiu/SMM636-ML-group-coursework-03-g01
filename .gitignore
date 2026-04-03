@@ -1,8 +1,9 @@
 # Folders
 .vscode/*
-submission-documents/
+*submission-documents/
 .venv
 LLM-output/figures
+
 
 # user settings
 .*DS_Store/*
