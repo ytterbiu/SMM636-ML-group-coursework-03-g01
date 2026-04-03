@@ -1118,6 +1118,15 @@ sk_palette <- createPalette(N = length(unique(sankeyfier_df$node)),
 
 names(sk_palette) <- unique(sankeyfier_df$node)
 
+lighten <- function(cols, amount = 0.5) {
+  rgb_mat <- col2rgb(cols) / 255
+  lightened <- rgb_mat + (1 - rgb_mat) * amount
+  rgb(lightened[1,], lightened[2,], lightened[3,])
+}
+
+sk_palette_light <- lighten(sk_palette, amount = 0.4)
+names(sk_palette_light) <- names(sk_palette)
+
 sk_pos  <- position_sankey(width = 0.5, nudge_x = - 0.15) # was 0.3
 sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.38) #was -0.28
 sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.15) # was 0.1
@@ -1148,7 +1157,7 @@ ggplot(
     position = sk_pos_text_node,
     hjust = 0,
     size = text_size,
-    fill = alpha("white", 0.8),
+    fill = alpha("white", 0),
     label.size = 0,
     label.padding = unit(2, "pt")
   ) +
@@ -1172,12 +1181,12 @@ ggplot(
     position = sk_pos_text_edge,
     size = text_size,
     color = "black",
-    fill     = alpha("white", 0.7),
+    fill     = alpha("white", 0),
     label.size = 0,
     label.padding = unit(1, "pt"),
     na.rm    = TRUE
   ) +
-  scale_fill_manual(values = sk_palette) +
+  scale_fill_manual(values = sk_palette_light) +
   scale_y_continuous(labels = scales::percent_format()) +
   scale_x_discrete(
     labels = c(
