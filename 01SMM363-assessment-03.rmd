@@ -143,6 +143,9 @@ library(NbClust)    # optimal-k diagnostics
 
 library(mclust)
 
+library(ggsankeyfier)
+library(Polychrome)
+
 # --- Reporting & Tables ---
 library(kableExtra) # for formatting output tables
 ```
@@ -1858,6 +1861,115 @@ and `r format_var_name("Detergents_Paper")`
 ("`r gmm_names["2"]`") spreads spend more evenly across categories including 
 `r format_var_name("Fresh")` (`r gmm_stat(2, "Fresh_pct")`%), suggesting a 
 convenience-store or diversified retailer profile.
+
+
+### Sankey diagram of spending for Gaussian Mixed Mixture and KMeans clusters
+
+```{r sankey-plot, echo=FALSE, fig.width=12, fig.height=10, fig.cap="Sankey diagram of spending across clusters. Each stacked bar shows the percentages of total spendings broken down into product categories (left), Gaussian Mixed Mixture clusters (middle), and KMeans (k=3) clusters (right). The flows on the left describes how each GMM cluster is comprised of spendings in different product categories. The flows on the right represent how the spendings are segmented differently by KMeans. Only flows with percentage value greater than 3% are labelled to minimise clutter."}
+
+categories <- c("Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen")
+
+sk_wide <- data %>%
+  pivot_longer(cols = all_of(categories),
+               names_to = "category",
+               values_to = "spend") %>%
+  group_by(category, km3_cluster, gmm_cluster) %>%
+  summarise(total_spend = sum(spend), .groups = "drop") %>%
+  mutate(
+    km3_cluster = paste0("KM-", km3_cluster),
+    gmm_cluster = paste0("GMM-", gmm_cluster)
+  ) %>%
+  mutate(perc = total_spend / sum(total_spend))
+
+# In case we want to set color based on a column
+sk_color_lookup <- sk_wide %>%
+  select(category, km3_cluster, gmm_cluster) %>%
+  #mutate(edge_color = km3_cluster)
+  mutate(edge_color = gmm_cluster)
+
+sankeyfier_df <- sk_wide %>%
+  left_join(sk_color_lookup, by = c("category", "km3_cluster", "gmm_cluster")) %>%
+  pivot_stages_longer(
+    #stages      = c("category", "km3_cluster", "gmm_cluster"),
+    #stages      = c("km3_cluster", "category", "gmm_cluster"), # category in the middle
+    stages      = c("category", "gmm_cluster", "km3_cluster"), # gmm_cluster in the middle
+    values_from = "perc",
+    additional_aes_from = c('edge_color')
+  )
+
+sk_palette <- createPalette(N = length(unique(sankeyfier_df$node)),
+                            seedcolors = c("#B22222", "#228B22", "#4682B4")
+                            )
+
+names(sk_palette) <- unique(sankeyfier_df$node)
+
+sk_pos  <- position_sankey(width = 0.3, nudge_x = - 0.15)
+sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.28)
+sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.1)
+
+sk_label_threshold <- 0.03
+
+ggplot(
+  sankeyfier_df,
+  aes(
+    x        = stage,
+    y        = perc,
+    group    = node,
+    connector = connector,
+    edge_id  = edge_id
+  )
+) +
+  # nodes
+  geom_sankeynode(
+    aes(fill = node),
+    position = sk_pos,
+    color    = "black"
+  ) +
+  # node labels
+  geom_text(
+    aes(label = node),
+    stat     = "sankeynode",
+    position = sk_pos_text_node,
+    hjust    = 0,
+    size     = 3
+  ) +
+  # edges (flows)
+  geom_sankeyedge(
+    aes(fill = edge_color),
+    #aes(fill = node),
+    position = sk_pos,
+    alpha    = 0.8
+  ) +
+  # edge-level percentage labels
+  geom_text(
+    stat     = "sankeyedge",
+    aes(
+      label = ifelse(after_stat(y) > sk_label_threshold, scales::percent(after_stat(y), accuracy = 0.1), ' ')
+    ),
+    position = sk_pos_text_edge,
+    size     = 3,
+    color    = "black"
+  ) +
+  scale_fill_manual(values = sk_palette) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_discrete(labels = c(
+    category     = "Category",
+    km3_cluster  = "KMeans Cluster",
+    gmm_cluster  = "GMM Cluster"
+  )) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.title.x    = element_blank()
+  ) +
+  labs(
+    title = "",
+    y     = "Percentage of Total Spending",
+  )
+
+```
+
+Figure \@ref(fig:sankey-plot) is a Sankey diagram visualising the relationship between Gaussian Mixed Mixture (GMM) and KMeans clusters in terms of percentages of total spending. Most notably, `GMM-3` captures a segment from both `KM-1` and `KM-3` customers that have high spending in `r format_var_name("Fresh")` and `r format_var_name("Frozen")` products. The remaining subset of `KM-1` mainly becomes `GMM-2`, which predominantly are in retail channel.
 
 
 ### Cluster assignments in PCA space {#apd:cluster-pca}
