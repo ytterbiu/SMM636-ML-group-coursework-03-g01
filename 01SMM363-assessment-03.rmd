@@ -1062,14 +1062,119 @@ distributed roughly proportionally within each cluster.
 
 Figure \@ref(fig:q2-revenue-triptych) presents the commercial impact of each
 segmentation. Under the existing binary Channel label, HoReCa customers account
-for 76% of Fresh revenue but only 68% of customers. 
-K-Means (k=3) identifies a "`r km3_names[mixed_cluster]`" segment 
+for 76% of Fresh revenue but only 68% of customers.
+K-Means (k=3) identifies a "`r km3_names[mixed_cluster]`" segment
 (`r sum(km3$cluster == as.integer(mixed_cluster))` customers, 
 `r round(sum(km3$cluster == as.integer(mixed_cluster)) / nrow(data) * 100)`%) 
 with spending patterns that cut across both channels.
 GMM further distinguishes Heavy Retail from Diversified Retail, and separates
-High-volume HoReCa from Balanced HoReCa, each with distinct category
-concentration profiles.
+High-volume HoReCa from Balanced HoReCa. Figure \@ref(fig:sankey-plot) traces 
+how spending flows between these segmentations, revealing that GMM-3 captures 
+high Fresh and Frozen spenders from multiple K-Means clusters.
+
+```{r sankey-plot, echo=FALSE, fig.width=12, fig.height=7, fig.cap="Sankey diagram of spending across clusters. Each stacked bar shows the percentages of total spendings broken down into product categories (left), Gaussian Mixed Mixture clusters (middle), and KMeans (k=3) clusters (right). The flows on the left describes how each GMM cluster is comprised of spendings in different product categories. The flows on the right represent how the spendings are segmented differently by KMeans. Only flows with percentage value greater than 3% are labelled to minimise clutter."}
+
+categories <- c("Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen")
+
+sk_wide <- data %>%
+  pivot_longer(cols = all_of(categories),
+               names_to = "category",
+               values_to = "spend") %>%
+  group_by(category, km3_cluster, gmm_cluster) %>%
+  summarise(total_spend = sum(spend), .groups = "drop") %>%
+  mutate(
+    km3_cluster = paste0("KM-", km3_cluster),
+    gmm_cluster = paste0("GMM-", gmm_cluster)
+  ) %>%
+  mutate(perc = total_spend / sum(total_spend))
+
+# In case we want to set color based on a column
+sk_color_lookup <- sk_wide %>%
+  select(category, km3_cluster, gmm_cluster) %>%
+  #mutate(edge_color = km3_cluster)
+  mutate(edge_color = gmm_cluster)
+
+sankeyfier_df <- sk_wide %>%
+  left_join(sk_color_lookup, by = c("category", "km3_cluster", "gmm_cluster")) %>%
+  pivot_stages_longer(
+    #stages      = c("category", "km3_cluster", "gmm_cluster"),
+    #stages      = c("km3_cluster", "category", "gmm_cluster"), # category in the middle
+    stages      = c("category", "gmm_cluster", "km3_cluster"), # gmm_cluster in the middle
+    values_from = "perc",
+    additional_aes_from = c('edge_color')
+  )
+
+sk_palette <- createPalette(N = length(unique(sankeyfier_df$node)),
+                            seedcolors = c("#B22222", "#228B22", "#4682B4")
+                            )
+
+names(sk_palette) <- unique(sankeyfier_df$node)
+
+sk_pos  <- position_sankey(width = 0.3, nudge_x = - 0.15)
+sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.28)
+sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.1)
+
+sk_label_threshold <- 0.03
+
+ggplot(
+  sankeyfier_df,
+  aes(
+    x        = stage,
+    y        = perc,
+    group    = node,
+    connector = connector,
+    edge_id  = edge_id
+  )
+) +
+  # nodes
+  geom_sankeynode(
+    aes(fill = node),
+    position = sk_pos,
+    color    = "black"
+  ) +
+  # node labels
+  geom_text(
+    aes(label = node),
+    stat     = "sankeynode",
+    position = sk_pos_text_node,
+    hjust    = 0,
+    size     = 3
+  ) +
+  # edges (flows)
+  geom_sankeyedge(
+    aes(fill = edge_color),
+    #aes(fill = node),
+    position = sk_pos,
+    alpha    = 0.8
+  ) +
+  # edge-level percentage labels
+  geom_text(
+    stat     = "sankeyedge",
+    aes(
+      label = ifelse(after_stat(y) > sk_label_threshold, scales::percent(after_stat(y), accuracy = 0.1), ' ')
+    ),
+    position = sk_pos_text_edge,
+    size     = 3,
+    color    = "black"
+  ) +
+  scale_fill_manual(values = sk_palette) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_discrete(labels = c(
+    category     = "Category",
+    km3_cluster  = "KMeans Cluster",
+    gmm_cluster  = "GMM Cluster"
+  )) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.title.x    = element_blank()
+  ) +
+  labs(
+    title = "",
+    y     = "Percentage of Total Spending",
+  )
+
+```
 
 The strength of this approach is that it operates entirely without access to
 Channel or Region labels. The near-perfect recovery of the Channel distinction
@@ -1083,27 +1188,37 @@ controlled trial of differentiated service strategies across segments.
 
 # Repeating \@ref(qone) & \@ref(qtwo) using LLMs {#qthr}
 
-Two LLMs were evaluated: (LLM1) and (LLM2). To ensure comparability, identical
-prompts were used for both models and neither was given the raw `csv` data file.
-Instead, the dataset was described in the first prompt and the LLMs were asked
-to produce R code for independent execution. This design choice was deliberate.
-By withholding the data, the procedure replicated a commercial setting in which
-an organisation may not wish to upload private, potentially valuable data to an
-LLM provider. It also ensured that neither model could adapt its recommendations
-to the observed distributions, testing whether each model's default
-methodological choices were appropriate for this dataset. Approximately one hour
-was spent per model across four prompts, with the final prompt kept consistent
-in intent but adapted to each model's prior output. Full prompts, responses, and
-figures produced by each LLM's generated code are provided in Appendix
-\@ref(apd-llm-information).
+Two Large Language Models (LLMs), Claude (Sonnet 4.6) and ChatGPT (GPT-5.3),
+were evaluated. To ensure comparability, identical prompts were used for both
+models and neither was given the raw `csv` file. The dataset was described in
+the first prompt and the LLMs were asked to produce R code for independent
+execution. This design choice was deliberate: withholding the data replicated a
+commercial setting in which an organisation may not wish to upload proprietary
+customer data to a third-party platform. It also ensured that neither model
+could adapt its recommendations to the observed distributions, testing whether
+each model's default methodological choices were appropriate for this dataset.
+Four prompts were used, included in full in Appendix \@ref(apd-llm-information).
 
-- Want to mention that the last comment was slightly dynamic and fed the input back into the LLM so slightly different, but kept the command under that consistent.
+As shown in Table \@ref(tab:llm-comparison), both LLMs correctly excluded Channel
+and Region, recommended log-transformation and standardisation, and converged on
+k=3, all without access to the data. Neither model interpreted the PCA loadings
+with specificity. Claude labelled PC1 as a "general spending scale" rather than
+the channel axis revealed by the actual loadings, while ChatGPT produced plots
+without interpreting them. Robustness checks and limitations were not mentioned
+until explicitly prompted. When asked in the final prompt, both models
+acknowledged that the data is from a well-known public dataset whose typical
+outcomes appear extensively in their training data, raising the question of
+whether the LLMs were performing genuine analytical reasoning or
+pattern-matching against memorised results.
 
-- Using same prompts for 2 LLMs for consistency / standardiseation.
-- 'to ensure compatibility identical prompts were used for both models' 
-(described in full in the appendix \@ref(apd-llm-information))
+ChatGPT produced more concise, modular code that executed without errors, while
+Claude generated comprehensive scripts with richer methodological commentary but
+several execution errors requiring manual debugging. LLMs demonstrate clear
+value for code generation and methodological structuring, but their inability to
+verify outputs against actual data distributions (and their tendency to present
+memorised patterns as derived findings) limits their current utility and 
+analytical value.
 
-Example table:
 
 ```{r llm-comparison, echo=FALSE}
 # define symbols
@@ -1123,20 +1238,20 @@ sym_legend <- paste0(
 # > can replace "?" with Y/P/N after running the LLM experiment
 
 rows <- tribble(
-  ~group,            ~label,                                          ~ours, ~chatgpt, ~claude,
-  "Preprocessing",   "Excluded Channel \\& Region from PCA/clustering", "Y",  "?",      "?",
-  "Preprocessing",   "Identified skewness / recommended log transform",  "Y",  "?",      "?",
-  "Preprocessing",   "Standardised variables before PCA",               "Y",  "?",      "?",
-  "PCA",             "Produced interpretable scree plot / variance",     "Y",  "?",      "?",
-  "PCA",             "Interpreted PC1 as channel axis",                  "Y",  "?",      "?",
-  "PCA",             "Validated PCA against Channel label",              "Y",  "?",      "?",
-  "Clustering",      "Justified choice of clustering method",            "Y",  "?",      "?",
-  "Clustering",      "Used formal $k$ selection (silhouette / BIC)",     "Y",  "?",      "?",
-  "Clustering",      "Identified structure beyond $k{=}2$",              "Y",  "?",      "?",
-  "Clustering",      "Suggested robustness check (alternative method)",  "Y",  "?",      "?",
-  "Interpretation",  "Commercial framing of segments",                   "Y",  "?",      "?",
-  "Interpretation",  "Acknowledged limitations of the analysis",         "Y",  "?",      "?",
-  "Interpretation",  "Suggested further methods or extensions",          "Y",  "?",      "?"
+  ~group,            ~label,                                            ~ours, ~chatgpt, ~claude,
+  "Preprocessing",   "Excluded Channel \\& Region from PCA/clustering",  "Y",   "Y",      "Y",
+  "Preprocessing",   "Identified skewness / recommended log transform",   "Y",   "Y",      "Y",
+  "Preprocessing",   "Standardised variables before PCA",                "Y",   "Y",      "Y",
+  "PCA",             "Produced interpretable scree plot / variance",      "Y",   "Y",      "Y",
+  "PCA",             "Interpreted PC loadings with specificity",          "Y",   "N",      "P",
+  "PCA",             "Validated PCA against Channel label",               "Y",   "Y",      "Y",
+  "Clustering",      "Justified choice of clustering method",             "Y",   "P",      "Y",
+  "Clustering",      "Used formal $k$ selection (silhouette / elbow)",    "Y",   "Y",      "P",
+  "Clustering",      "Identified structure beyond $k{=}2$",               "Y",   "Y",      "Y",
+  "Clustering",      "Applied robustness checks unprompted",              "Y",   "N",      "N",
+  "Interpretation",  "Commercial framing of segments",                    "Y",   "P",      "Y",
+  "Interpretation",  "Acknowledged limitations unprompted",               "Y",   "N",      "N",
+  "Interpretation",  "Generated code executed without errors",            "Y",   "Y",      "N"
 )
 
 # map codes to symbols
@@ -1157,7 +1272,7 @@ score_col <- function(col) {
   n_p <- sum(col == "P")
   # format: "10/14 (2P)" or "14/14" if no partials
   if (n_p > 0) {
-    paste0(n_y, "/", n_total, " (", n_p, "P)")
+    paste0(n_y, "/", n_total, " (", n_p, " partial)")
   } else {
     paste0(n_y, "/", n_total)
   }
@@ -1862,114 +1977,9 @@ and `r format_var_name("Detergents_Paper")`
 `r format_var_name("Fresh")` (`r gmm_stat(2, "Fresh_pct")`%), suggesting a 
 convenience-store or diversified retailer profile.
 
-
-### Sankey diagram of spending for Gaussian Mixed Mixture and KMeans clusters
-
-```{r sankey-plot, echo=FALSE, fig.width=12, fig.height=10, fig.cap="Sankey diagram of spending across clusters. Each stacked bar shows the percentages of total spendings broken down into product categories (left), Gaussian Mixed Mixture clusters (middle), and KMeans (k=3) clusters (right). The flows on the left describes how each GMM cluster is comprised of spendings in different product categories. The flows on the right represent how the spendings are segmented differently by KMeans. Only flows with percentage value greater than 3% are labelled to minimise clutter."}
-
-categories <- c("Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen")
-
-sk_wide <- data %>%
-  pivot_longer(cols = all_of(categories),
-               names_to = "category",
-               values_to = "spend") %>%
-  group_by(category, km3_cluster, gmm_cluster) %>%
-  summarise(total_spend = sum(spend), .groups = "drop") %>%
-  mutate(
-    km3_cluster = paste0("KM-", km3_cluster),
-    gmm_cluster = paste0("GMM-", gmm_cluster)
-  ) %>%
-  mutate(perc = total_spend / sum(total_spend))
-
-# In case we want to set color based on a column
-sk_color_lookup <- sk_wide %>%
-  select(category, km3_cluster, gmm_cluster) %>%
-  #mutate(edge_color = km3_cluster)
-  mutate(edge_color = gmm_cluster)
-
-sankeyfier_df <- sk_wide %>%
-  left_join(sk_color_lookup, by = c("category", "km3_cluster", "gmm_cluster")) %>%
-  pivot_stages_longer(
-    #stages      = c("category", "km3_cluster", "gmm_cluster"),
-    #stages      = c("km3_cluster", "category", "gmm_cluster"), # category in the middle
-    stages      = c("category", "gmm_cluster", "km3_cluster"), # gmm_cluster in the middle
-    values_from = "perc",
-    additional_aes_from = c('edge_color')
-  )
-
-sk_palette <- createPalette(N = length(unique(sankeyfier_df$node)),
-                            seedcolors = c("#B22222", "#228B22", "#4682B4")
-                            )
-
-names(sk_palette) <- unique(sankeyfier_df$node)
-
-sk_pos  <- position_sankey(width = 0.3, nudge_x = - 0.15)
-sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.28)
-sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.1)
-
-sk_label_threshold <- 0.03
-
-ggplot(
-  sankeyfier_df,
-  aes(
-    x        = stage,
-    y        = perc,
-    group    = node,
-    connector = connector,
-    edge_id  = edge_id
-  )
-) +
-  # nodes
-  geom_sankeynode(
-    aes(fill = node),
-    position = sk_pos,
-    color    = "black"
-  ) +
-  # node labels
-  geom_text(
-    aes(label = node),
-    stat     = "sankeynode",
-    position = sk_pos_text_node,
-    hjust    = 0,
-    size     = 3
-  ) +
-  # edges (flows)
-  geom_sankeyedge(
-    aes(fill = edge_color),
-    #aes(fill = node),
-    position = sk_pos,
-    alpha    = 0.8
-  ) +
-  # edge-level percentage labels
-  geom_text(
-    stat     = "sankeyedge",
-    aes(
-      label = ifelse(after_stat(y) > sk_label_threshold, scales::percent(after_stat(y), accuracy = 0.1), ' ')
-    ),
-    position = sk_pos_text_edge,
-    size     = 3,
-    color    = "black"
-  ) +
-  scale_fill_manual(values = sk_palette) +
-  scale_y_continuous(labels = scales::percent_format()) +
-  scale_x_discrete(labels = c(
-    category     = "Category",
-    km3_cluster  = "KMeans Cluster",
-    gmm_cluster  = "GMM Cluster"
-  )) +
-  theme_minimal(base_size = 12) +
-  theme(
-    legend.position = "none",
-    axis.title.x    = element_blank()
-  ) +
-  labs(
-    title = "",
-    y     = "Percentage of Total Spending",
-  )
-
-```
-
-Figure \@ref(fig:sankey-plot) is a Sankey diagram visualising the relationship between Gaussian Mixed Mixture (GMM) and KMeans clusters in terms of percentages of total spending. Most notably, `GMM-3` captures a segment from both `KM-1` and `KM-3` customers that have high spending in `r format_var_name("Fresh")` and `r format_var_name("Frozen")` products. The remaining subset of `KM-1` mainly becomes `GMM-2`, which predominantly are in retail channel.
+<!-- BE note: moved up into main text -->
+<!-- ### !!! Sankey diagram of spending for Gaussian Mixed Mixture and KMeans clusters -->
+<!-- Figure \@ref(fig:sankey-plot) is a Sankey diagram visualising the relationship between GMM and KMeans clusters in terms of percentages of total spending. Most notably, `GMM-3` captures a segment from both KM-1 and KM-3 customers that have high spending in `r format_var_name("Fresh")` and `r format_var_name("Frozen")` products. The remaining subset of KM-1 mainly becomes GMM-2, which predominantly are in retail channel. -->
 
 
 ### Cluster assignments in PCA space {#apd:cluster-pca}
