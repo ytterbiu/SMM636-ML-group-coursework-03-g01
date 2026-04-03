@@ -11,26 +11,24 @@ module SMM636 Machine Learning.
 
 ## Dataset
 
-Kaggle (TBI)
+**Wholesale Customers** — UCI Machine Learning Repository
+https://archive.ics.uci.edu/dataset/292/wholesale+customers
 
 ## Requirements
 
 Install dependencies with:
 
-<!-- ```r
+```r
 install.packages(c(
-  "shiny",
-  "bslib",
-  "dplyr",
-  "ggplot2",
-  "DT",
-  "rpart",
-  "rpart.plot",
-  "randomForest",
-  "pROC",
-  "tidymodels",
-  "xgboost",
-  "DiagrammeR",
-  "shapviz"
+  "tidyverse",
+  "patchwork",
+  "corrplot",
+  "factoextra",
+  "mclust",
+  "ggsankeyfier",
+  "Polychrome",
+  "kableExtra",
+  "callr",
+  "ggpubr"
 ))
-``` -->
+```
