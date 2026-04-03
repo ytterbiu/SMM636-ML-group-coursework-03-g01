@@ -1088,6 +1088,22 @@ sk_wide <- data %>%
   ) %>%
   mutate(perc = total_spend / sum(total_spend))
 
+# Remap cluster IDs to descriptive labels
+km3_label_map <- setNames(
+  paste0("KM-", names(km3_names), "\n", km3_names),
+  paste0("KM-", names(km3_names))
+)
+gmm_label_map <- setNames(
+  paste0("GMM-", names(gmm_names), "\n", gmm_names),
+  paste0("GMM-", names(gmm_names))
+)
+
+sk_wide <- sk_wide %>%
+  mutate(
+    km3_cluster = km3_label_map[km3_cluster],
+    gmm_cluster = gmm_label_map[gmm_cluster]
+  )
+
 # In case we want to set color based on a column
 sk_color_lookup <- sk_wide %>%
   select(category, km3_cluster, gmm_cluster) %>%
@@ -1110,68 +1126,82 @@ sk_palette <- createPalette(N = length(unique(sankeyfier_df$node)),
 
 names(sk_palette) <- unique(sankeyfier_df$node)
 
-sk_pos  <- position_sankey(width = 0.3, nudge_x = - 0.15)
-sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.28)
-sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.1)
+sk_pos  <- position_sankey(width = 0.5, nudge_x = - 0.15) # was 0.3
+sk_pos_text_node <- position_sankey(text = TRUE, nudge_x = - 0.38) #was -0.28
+sk_pos_text_edge <- position_sankey(text = TRUE, nudge_x = 0.15) # was 0.1
 
 sk_label_threshold <- 0.03
+text_size <- 4
 
 ggplot(
   sankeyfier_df,
   aes(
-    x        = stage,
-    y        = perc,
-    group    = node,
+    x = stage,
+    y = perc,
+    group = node,
     connector = connector,
-    edge_id  = edge_id
+    edge_id = edge_id
   )
 ) +
   # nodes
   geom_sankeynode(
     aes(fill = node),
     position = sk_pos,
-    color    = "black"
+    color = "black"
   ) +
   # node labels
-  geom_text(
+  geom_label(
     aes(label = node),
-    stat     = "sankeynode",
+    stat = "sankeynode",
     position = sk_pos_text_node,
-    hjust    = 0,
-    size     = 3
+    hjust = 0,
+    size = text_size,
+    fill = alpha("white", 0.8),
+    label.size = 0,
+    label.padding = unit(2, "pt")
   ) +
   # edges (flows)
   geom_sankeyedge(
     aes(fill = edge_color),
     #aes(fill = node),
     position = sk_pos,
-    alpha    = 0.8
+    alpha = 0.8
   ) +
   # edge-level percentage labels
-  geom_text(
-    stat     = "sankeyedge",
+  geom_label(
+    stat = "sankeyedge",
     aes(
-      label = ifelse(after_stat(y) > sk_label_threshold, scales::percent(after_stat(y), accuracy = 0.1), ' ')
+      label = ifelse(
+        after_stat(y) > sk_label_threshold,
+        scales::percent(after_stat(y), accuracy = 0.1),
+        NA
+      )
     ),
     position = sk_pos_text_edge,
-    size     = 3,
-    color    = "black"
+    size = text_size,
+    color = "black",
+    fill     = alpha("white", 0.7),
+    label.size = 0,
+    label.padding = unit(1, "pt"),
+    na.rm    = TRUE
   ) +
   scale_fill_manual(values = sk_palette) +
   scale_y_continuous(labels = scales::percent_format()) +
-  scale_x_discrete(labels = c(
-    category     = "Category",
-    km3_cluster  = "KMeans Cluster",
-    gmm_cluster  = "GMM Cluster"
-  )) +
+  scale_x_discrete(
+    labels = c(
+      category = "Category",
+      km3_cluster = "KMeans Cluster",
+      gmm_cluster = "GMM Cluster"
+    )
+  ) +
   theme_minimal(base_size = 12) +
   theme(
     legend.position = "none",
-    axis.title.x    = element_blank()
+    axis.title.x = element_blank()
   ) +
   labs(
     title = "",
-    y     = "Percentage of Total Spending",
+    y = "Percentage of total spending",
   )
 
 ```
@@ -3104,9 +3134,10 @@ beginning of this document, but is reproduced below for transparency:
 
 Generative AI tools (Claude Opus 4.6, Sonnet 4.6, ChatGPT GPT-5.3, Google Gemini
 Pro) were used throughout this project to assist with code generation,
-debugging, methodological validation, and report structuring. The final
-analysis, statistical interpretation, and written content of this report are the
-work of the group members.
+debugging, methodological validation, and report structuring. 
+
+The final analysis, statistical interpretation, and written content of this
+report are the work of all group members.
 
 <!-- BE note: taken out as we are submitting R file separately -->
 <!-- Use: `knitr::purl("01SMM363-assessment-03.rmd", documentation = 0)` to generate r file -->
